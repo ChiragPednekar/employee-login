@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
 import "./globals.css";
+import SWRegister from "@/components/SWRegister";
 
 const geist = Geist({ subsets: ["latin"] });
 
@@ -28,6 +29,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${geist.className} bg-slate-100 text-slate-900 antialiased`}>
+        <SWRegister />
         {children}
       </body>
     </html>
