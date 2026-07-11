@@ -1,16 +1,44 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { istToday } from "@/lib/hooks";
 import { fmtTime, elapsedSince } from "@/lib/format";
 import type { WorkSession, Employee } from "@/lib/types";
+import {
+  Card,
+  StatCard,
+  SectionTitle,
+  Badge,
+  QuickAction,
+  Skeleton,
+  EmptyState,
+} from "@/components/ui";
+import {
+  Clock,
+  Users,
+  MapPin,
+  Plane,
+  TrendingUp,
+  UserPlus,
+  CheckCircle2,
+  CalendarClock,
+} from "lucide-react";
 
 type SessionWithEmp = WorkSession & { employees: Pick<Employee, "name" | "emp_id"> };
 
+function greeting() {
+  const h = Number(
+    new Date().toLocaleString("en-US", { hour: "2-digit", hour12: false, timeZone: "Asia/Kolkata" })
+  );
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
+}
+
 export default function AdminDashboard() {
   const [today, setToday] = useState<SessionWithEmp[]>([]);
+  const [weekRows, setWeekRows] = useState<{ work_date: string; employee_id: string }[]>([]);
   const [pendingSessions, setPendingSessions] = useState(0);
   const [pendingLeaves, setPendingLeaves] = useState(0);
   const [employeeCount, setEmployeeCount] = useState(0);
@@ -19,13 +47,20 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const supabase = supabaseBrowser();
+    const weekAgo = new Date(Date.now() - 6 * 86400000).toLocaleDateString("en-CA", {
+      timeZone: "Asia/Kolkata",
+    });
     async function load() {
-      const [sessions, pendS, pendL, emps] = await Promise.all([
+      const [sessions, week, pendS, pendL, emps] = await Promise.all([
         supabase
           .from("work_sessions")
           .select("*, employees!employee_id(name, emp_id)")
           .eq("work_date", istToday())
           .order("started_at"),
+        supabase
+          .from("work_sessions")
+          .select("work_date, employee_id")
+          .gte("work_date", weekAgo),
         supabase
           .from("work_sessions")
           .select("id", { count: "exact", head: true })
@@ -41,6 +76,7 @@ export default function AdminDashboard() {
           .eq("role", "employee"),
       ]);
       setToday((sessions.data as SessionWithEmp[]) ?? []);
+      setWeekRows((week.data as { work_date: string; employee_id: string }[]) ?? []);
       setPendingSessions(pendS.count ?? 0);
       setPendingLeaves(pendL.count ?? 0);
       setEmployeeCount(emps.count ?? 0);
@@ -56,103 +92,171 @@ export default function AdminDashboard() {
   }, []);
 
   const working = today.filter((s) => s.status === "active");
+  const presentToday = today.filter((s) => s.status !== "denied").length;
+
+  // 7-day attendance trend: distinct present employees per day
+  const trend = useMemo(() => {
+    const days: { label: string; date: string; count: number }[] = [];
+    const byDate = new Map<string, Set<string>>();
+    for (const r of weekRows) {
+      if (!byDate.has(r.work_date)) byDate.set(r.work_date, new Set());
+      byDate.get(r.work_date)!.add(r.employee_id);
+    }
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 86400000);
+      const key = d.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+      days.push({
+        label: d.toLocaleDateString("en-US", { weekday: "narrow", timeZone: "Asia/Kolkata" }),
+        date: key,
+        count: byDate.get(key)?.size ?? 0,
+      });
+    }
+    return days;
+  }, [weekRows]);
+
+  const maxTrend = Math.max(1, ...trend.map((d) => d.count));
+  const avgPresent = trend.reduce((a, d) => a + d.count, 0) / (trend.length || 1);
+  const attendanceRate =
+    employeeCount > 0 ? Math.round((avgPresent / employeeCount) * 100) : 0;
 
   return (
-    <main className="space-y-4 p-4">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-2xl bg-white p-4 shadow-sm">
-          <p className="text-xs text-slate-500">Working now</p>
-          <p className="text-2xl font-bold text-emerald-600">{working.length}</p>
-        </div>
-        <div className="rounded-2xl bg-white p-4 shadow-sm">
-          <p className="text-xs text-slate-500">Present today</p>
-          <p className="text-2xl font-bold">
-            {today.filter((s) => s.status !== "denied").length}
-            <span className="text-sm font-normal text-slate-400"> / {employeeCount}</span>
-          </p>
-        </div>
-        <Link href="/admin/approvals" className="rounded-2xl bg-white p-4 shadow-sm">
-          <p className="text-xs text-slate-500">Location requests</p>
-          <p className={`text-2xl font-bold ${pendingSessions ? "text-amber-600" : ""}`}>
-            {pendingSessions}
-          </p>
-        </Link>
-        <Link href="/admin/leaves" className="rounded-2xl bg-white p-4 shadow-sm">
-          <p className="text-xs text-slate-500">Leave requests</p>
-          <p className={`text-2xl font-bold ${pendingLeaves ? "text-amber-600" : ""}`}>
-            {pendingLeaves}
-          </p>
-        </Link>
+    <main className="space-y-6 p-4">
+      {/* Greeting */}
+      <div className="pt-1">
+        <h1 className="text-xl font-semibold tracking-tight text-slate-900">{greeting()} 👋</h1>
+        <p className="mt-0.5 text-sm text-slate-500">Here&apos;s what needs your attention today.</p>
       </div>
 
-      {(pendingSessions > 0 || pendingLeaves > 0) && (
-        <div className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-800">
-          ⚠️ You have{" "}
-          {pendingSessions > 0 && (
-            <Link href="/admin/approvals" className="font-bold underline">
-              {pendingSessions} location request{pendingSessions > 1 ? "s" : ""}
-            </Link>
-          )}
-          {pendingSessions > 0 && pendingLeaves > 0 && " and "}
-          {pendingLeaves > 0 && (
-            <Link href="/admin/leaves" className="font-bold underline">
-              {pendingLeaves} leave request{pendingLeaves > 1 ? "s" : ""}
-            </Link>
-          )}{" "}
-          waiting for you.
+      {/* Quick actions */}
+      <div className="flex flex-wrap gap-2">
+        <QuickAction label="Approve requests" icon={CheckCircle2} href="/admin/approvals" />
+        <QuickAction label="Add employee" icon={UserPlus} href="/admin/employees" />
+        <QuickAction label="View attendance" icon={CalendarClock} href="/admin/attendance" />
+      </div>
+
+      {/* Stats */}
+      {!loaded ? (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-[86px]" />
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatCard
+            label="Working now"
+            value={working.length}
+            icon={Clock}
+            tone="emerald"
+            highlight={working.length > 0}
+          />
+          <StatCard
+            label="Present today"
+            value={presentToday}
+            sub={`of ${employeeCount} employees`}
+            icon={Users}
+            tone="indigo"
+          />
+          <StatCard
+            label="Location requests"
+            value={pendingSessions}
+            icon={MapPin}
+            tone="amber"
+            href="/admin/approvals"
+            highlight={pendingSessions > 0}
+          />
+          <StatCard
+            label="Leave requests"
+            value={pendingLeaves}
+            icon={Plane}
+            tone="amber"
+            href="/admin/leaves"
+            highlight={pendingLeaves > 0}
+          />
         </div>
       )}
 
-      <div>
-        <p className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
-          Today
-        </p>
-        <div className="space-y-2">
-          {loaded && today.length === 0 && (
-            <p className="rounded-2xl bg-white p-6 text-center text-sm text-slate-400 shadow-sm">
-              Nobody has logged in yet today
-            </p>
-          )}
-          {today.map((s) => (
-            <div
-              key={s.id}
-              className="flex items-center justify-between rounded-2xl bg-white p-4 shadow-sm"
-            >
-              <div>
-                <p className="font-semibold">
-                  {s.employees.name}{" "}
-                  <span className="text-xs font-normal text-slate-400">
-                    {s.employees.emp_id}
-                  </span>
-                </p>
-                <p className="text-sm text-slate-500">
-                  Started {fmtTime(s.started_at)}
-                  {s.ended_at ? ` · ended ${fmtTime(s.ended_at)}` : ""}
-                </p>
-              </div>
-              <div className="text-right">
-                {s.status === "active" && (
-                  <p className="font-mono text-sm font-bold text-emerald-600">
-                    {elapsedSince(s.started_at)}
-                  </p>
-                )}
-                <span
-                  className={`text-xs font-medium ${
-                    s.status === "active"
-                      ? "text-emerald-600"
-                      : s.status === "pending_approval"
-                        ? "text-amber-600"
-                        : s.status === "denied"
-                          ? "text-red-600"
-                          : "text-slate-500"
-                  }`}
-                >
-                  {s.status === "pending_approval" ? "needs approval" : s.status.replace("_", " ")}
-                </span>
-              </div>
-            </div>
-          ))}
+      {/* Weekly trend + attendance rate */}
+      <Card className="p-4">
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <TrendingUp size={16} className="text-indigo-500" strokeWidth={2.25} />
+            <h2 className="text-sm font-semibold text-slate-900">Attendance this week</h2>
+          </div>
+          <div className="text-right">
+            <p className="text-lg font-semibold leading-none text-slate-900">{attendanceRate}%</p>
+            <p className="text-[11px] text-slate-400">avg. present</p>
+          </div>
         </div>
+        {!loaded ? (
+          <Skeleton className="h-28 w-full" />
+        ) : (
+          <div className="flex h-28 items-end gap-2">
+            {trend.map((d) => (
+              <div key={d.date} className="flex flex-1 flex-col items-center gap-1.5">
+                <div className="flex w-full flex-1 items-end">
+                  <div
+                    className="w-full rounded-md bg-indigo-500/90 transition-all duration-500"
+                    style={{ height: `${Math.max(6, (d.count / maxTrend) * 100)}%` }}
+                    title={`${d.count} present`}
+                  />
+                </div>
+                <span className="text-[11px] font-medium text-slate-400">{d.label}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* Today's activity */}
+      <div className="space-y-2">
+        <SectionTitle>Today&apos;s activity</SectionTitle>
+        {!loaded ? (
+          <div className="space-y-2">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-16" />
+            ))}
+          </div>
+        ) : today.length === 0 ? (
+          <EmptyState
+            icon={Clock}
+            title="Nobody has logged in yet today"
+            hint="Sessions will appear here as employees start work."
+          />
+        ) : (
+          <div className="space-y-2">
+            {today.map((s) => (
+              <Card key={s.id} className="flex items-center justify-between p-4">
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-slate-900">
+                    {s.employees.name}{" "}
+                    <span className="text-xs font-normal text-slate-400">{s.employees.emp_id}</span>
+                  </p>
+                  <p className="mt-0.5 text-sm text-slate-500">
+                    Started {fmtTime(s.started_at)}
+                    {s.ended_at ? ` · ended ${fmtTime(s.ended_at)}` : ""}
+                  </p>
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  {s.status === "active" && (
+                    <span className="font-mono text-sm font-semibold text-emerald-600">
+                      {elapsedSince(s.started_at)}
+                    </span>
+                  )}
+                  {s.status === "active" ? (
+                    <Badge tone="emerald">working</Badge>
+                  ) : s.status === "pending_approval" ? (
+                    <Badge tone="amber">needs approval</Badge>
+                  ) : s.status === "denied" ? (
+                    <Badge tone="red">denied</Badge>
+                  ) : (
+                    <Badge tone="slate">{s.status.replace("_", " ")}</Badge>
+                  )}
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
     </main>
   );
