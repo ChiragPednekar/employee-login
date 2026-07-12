@@ -31,6 +31,8 @@ async function subscribe(employeeId: string) {
   );
 }
 
+const DISMISS_KEY = "worklog_push_prompt_dismissed";
+
 export default function PushSetup({ employeeId }: { employeeId: string }) {
   const [showPrompt, setShowPrompt] = useState(false);
 
@@ -41,7 +43,10 @@ export default function PushSetup({ employeeId }: { employeeId: string }) {
 
     if (Notification.permission === "granted") {
       subscribe(employeeId).catch(() => {});
-    } else if (Notification.permission === "default") {
+    } else if (
+      Notification.permission === "default" &&
+      !localStorage.getItem(DISMISS_KEY)
+    ) {
       setShowPrompt(true);
     }
   }, [employeeId]);
@@ -49,7 +54,7 @@ export default function PushSetup({ employeeId }: { employeeId: string }) {
   if (!showPrompt) return null;
 
   return (
-    <div className="fixed inset-x-4 bottom-20 z-50 rounded-xl bg-slate-900 p-4 text-white shadow-xl">
+    <div className="fixed inset-x-4 z-30 mx-auto max-w-md rounded-xl bg-slate-900 p-4 text-white shadow-xl sm:max-w-sm bottom-[calc(5.5rem+env(safe-area-inset-bottom))]">
       <p className="text-sm">
         Enable notifications to get updates about approvals and your work session.
       </p>
@@ -65,7 +70,10 @@ export default function PushSetup({ employeeId }: { employeeId: string }) {
           Enable
         </button>
         <button
-          onClick={() => setShowPrompt(false)}
+          onClick={() => {
+            localStorage.setItem(DISMISS_KEY, "1");
+            setShowPrompt(false);
+          }}
           className="rounded-lg px-4 py-2 text-sm text-slate-300"
         >
           Not now

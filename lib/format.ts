@@ -5,6 +5,16 @@ export function fmtMinutes(min: number | null | undefined): string {
   return `${h}h ${m.toString().padStart(2, "0")}m`;
 }
 
+/** Duration for a session row: sub-minute completed sessions read as "< 1m"
+ *  instead of a broken-looking "0h 00m". Denied sessions keep 0h 00m (no credit). */
+export function fmtSessionMinutes(
+  min: number | null | undefined,
+  status?: string
+): string {
+  if (min === 0 && status === "completed") return "< 1m";
+  return fmtMinutes(min);
+}
+
 export function fmtTime(iso: string | null | undefined): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleTimeString("en-IN", {

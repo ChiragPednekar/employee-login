@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { useMe } from "@/lib/hooks";
-import { fmtDate, fmtMinutes, fmtTime, SESSION_STATUS_LABEL } from "@/lib/format";
+import { fmtDate, fmtMinutes, fmtSessionMinutes, fmtTime, SESSION_STATUS_LABEL } from "@/lib/format";
 import type { WorkSession, WorkLocation } from "@/lib/types";
 
 export default function HistoryPage() {
@@ -85,7 +85,7 @@ export default function HistoryPage() {
                 : " · Unlisted location"}
             </p>
             <div className="mt-2 flex gap-4 text-sm">
-              <span className="font-semibold">{fmtMinutes(s.total_minutes)}</span>
+              <span className="font-semibold">{fmtSessionMinutes(s.total_minutes, s.status)}</span>
               {(s.overtime_minutes ?? 0) > 0 && (
                 <span className="font-semibold text-indigo-600">
                   +{fmtMinutes(s.overtime_minutes)} OT

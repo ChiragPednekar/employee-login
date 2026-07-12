@@ -25,7 +25,7 @@ export default async function AdminLayout({
   if (emp.role !== "admin") redirect("/");
 
   return (
-    <div className="mx-auto min-h-dvh max-w-3xl pb-10">
+    <div className="mx-auto min-h-dvh w-full max-w-6xl px-0 pb-10 lg:px-6">
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur">
         <div className="flex items-center justify-between px-4 py-3">
           <div>

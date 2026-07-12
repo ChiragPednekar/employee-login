@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { istToday } from "@/lib/hooks";
-import { fmtDate, fmtMinutes, fmtTime, SESSION_STATUS_LABEL } from "@/lib/format";
+import { fmtDate, fmtMinutes, fmtSessionMinutes, fmtTime, SESSION_STATUS_LABEL } from "@/lib/format";
 import type { WorkSession, Employee } from "@/lib/types";
 
 type SessionWithEmp = WorkSession & { employees: Pick<Employee, "name" | "emp_id"> };
@@ -155,7 +155,7 @@ export default function AttendancePage() {
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="font-semibold">{fmtMinutes(s.total_minutes)}</p>
+                      <p className="font-semibold">{fmtSessionMinutes(s.total_minutes, s.status)}</p>
                       <p className="text-xs text-slate-400">{SESSION_STATUS_LABEL[s.status]}</p>
                     </div>
                   </div>

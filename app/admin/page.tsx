@@ -176,8 +176,9 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* Weekly trend + attendance rate */}
-      <Card className="p-4">
+      {/* Weekly trend + attendance rate; sits beside activity on desktop */}
+      <div className="grid gap-6 lg:grid-cols-5 lg:items-start">
+      <Card className="p-4 lg:col-span-2">
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <TrendingUp size={16} className="text-indigo-500" strokeWidth={2.25} />
@@ -193,14 +194,20 @@ export default function AdminDashboard() {
         ) : (
           <div className="flex h-28 items-end gap-2">
             {trend.map((d) => (
-              <div key={d.date} className="flex flex-1 flex-col items-center gap-1.5">
-                <div className="flex w-full flex-1 items-end">
-                  <div
-                    className="w-full rounded-md bg-indigo-500/90 transition-all duration-500"
-                    style={{ height: `${Math.max(6, (d.count / maxTrend) * 100)}%` }}
-                    title={`${d.count} present`}
-                  />
-                </div>
+              <div
+                key={d.date}
+                className="flex h-full flex-1 flex-col items-center justify-end gap-1.5"
+              >
+                {/* Pixel heights: % heights don't resolve inside a content-sized flex parent */}
+                <div
+                  className={`w-full max-w-10 rounded-md transition-all duration-500 ${
+                    d.count > 0 ? "bg-indigo-500/90" : "bg-slate-200/80"
+                  }`}
+                  style={{
+                    height: `${d.count > 0 ? Math.max(10, Math.round((d.count / maxTrend) * 84)) : 4}px`,
+                  }}
+                  title={`${d.count} present on ${d.date}`}
+                />
                 <span className="text-[11px] font-medium text-slate-400">{d.label}</span>
               </div>
             ))}
@@ -209,7 +216,7 @@ export default function AdminDashboard() {
       </Card>
 
       {/* Today's activity */}
-      <div className="space-y-2">
+      <div className="space-y-2 lg:col-span-3">
         <SectionTitle>Today&apos;s activity</SectionTitle>
         {!loaded ? (
           <div className="space-y-2">
@@ -257,6 +264,7 @@ export default function AdminDashboard() {
             ))}
           </div>
         )}
+      </div>
       </div>
     </main>
   );
