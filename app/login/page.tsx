@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { BriefcaseBusiness, Lock, Eye, EyeOff, ShieldCheck, LoaderCircle } from "lucide-react";
+import { FieldLabel, inputCls } from "@/components/ui";
 
 type Mode = "login" | "activate";
 
@@ -13,6 +15,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -37,7 +40,7 @@ export default function LoginPage() {
     if (error) {
       setError(
         error.message === "Invalid login credentials"
-          ? "Wrong email or password. If this is your first time, use “First time here?” below to set your password."
+          ? "Wrong email or password. First time here? Use “Set password” below."
           : error.message
       );
       setBusy(false);
@@ -82,88 +85,136 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-dvh items-center justify-center p-6">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-600 text-3xl text-white shadow-lg">
-            ⏱
+    <main className="flex min-h-dvh items-center justify-center bg-white p-4 md:p-6">
+      <div className="flex w-full max-w-[440px] flex-col items-center">
+        {/* Branding anchor */}
+        <header className="mb-10 text-center">
+          <div className="mb-4 flex items-center justify-center">
+            <BriefcaseBusiness size={48} className="text-primary" strokeWidth={2} />
           </div>
-          <h1 className="text-2xl font-bold">WorkLog</h1>
-          <p className="text-sm text-slate-500">
-            {mode === "login"
-              ? "Sign in to mark your attendance"
-              : "First login — set your password"}
+          <h1 className="text-[32px] font-extrabold leading-10 tracking-tight text-ink">
+            WorkLog
+          </h1>
+          <p className="mt-2 text-sm text-ink-muted">
+            Location-based Attendance &amp; Leave
           </p>
-        </div>
+        </header>
 
-        <form
-          onSubmit={mode === "login" ? handleLogin : handleActivate}
-          className="space-y-4 rounded-2xl bg-white p-6 shadow-sm"
-        >
-          <div>
-            <label className="mb-1 block text-sm font-medium">Email</label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-              placeholder="you@company.com"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium">
-              {mode === "login" ? "Password" : "New password (min 8 characters)"}
-            </label>
-            <input
-              type="password"
-              required
-              minLength={mode === "activate" ? 8 : undefined}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-              placeholder="••••••••"
-            />
-          </div>
-          {mode === "activate" && (
-            <div>
-              <label className="mb-1 block text-sm font-medium">Confirm password</label>
+        {/* Authentication card */}
+        <section className="w-full rounded-lg border border-line bg-white p-8">
+          <form
+            onSubmit={mode === "login" ? handleLogin : handleActivate}
+            className="space-y-6"
+          >
+            <div className="space-y-1">
+              <FieldLabel htmlFor="email">Email Address</FieldLabel>
               <input
-                type="password"
+                id="email"
+                type="email"
                 required
-                minLength={8}
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-                placeholder="••••••••"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className={inputCls}
+                placeholder="name@company.com"
               />
             </div>
-          )}
 
-          {error && (
-            <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
-          )}
+            <div className="space-y-1">
+              <FieldLabel htmlFor="password">
+                {mode === "login" ? "Password" : "New password (min 8 characters)"}
+              </FieldLabel>
+              <div className="relative">
+                <input
+                  id="password"
+                  type={showPass ? "text" : "password"}
+                  required
+                  minLength={mode === "activate" ? 8 : undefined}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className={`${inputCls} pr-10`}
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPass(!showPass)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted transition-colors hover:text-primary"
+                  aria-label={showPass ? "Hide password" : "Show password"}
+                >
+                  {showPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
 
-          <button
-            type="submit"
-            disabled={busy}
-            className="w-full rounded-lg bg-indigo-600 py-3 font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
-          >
-            {busy ? "Please wait…" : mode === "login" ? "Sign in" : "Set password & sign in"}
-          </button>
-        </form>
+            {mode === "activate" && (
+              <div className="space-y-1">
+                <FieldLabel htmlFor="confirm">Confirm password</FieldLabel>
+                <input
+                  id="confirm"
+                  type={showPass ? "text" : "password"}
+                  required
+                  minLength={8}
+                  value={confirm}
+                  onChange={(e) => setConfirm(e.target.value)}
+                  className={inputCls}
+                  placeholder="••••••••"
+                />
+              </div>
+            )}
 
-        <button
-          onClick={() => {
-            setMode(mode === "login" ? "activate" : "login");
-            setError(null);
-          }}
-          className="mt-4 w-full text-center text-sm font-medium text-indigo-600 hover:underline"
-        >
-          {mode === "login"
-            ? "First time here? Set your password →"
-            : "← Already activated? Sign in"}
-        </button>
+            {error && (
+              <p className="rounded-lg bg-danger-tint px-3 py-2 text-sm text-danger-deep">
+                {error}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={busy}
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-primary text-sm font-semibold text-white transition-all duration-100 hover:bg-primary-hover active:scale-[0.98] disabled:opacity-60"
+            >
+              {busy ? (
+                <>
+                  <LoaderCircle size={17} className="animate-spin" />
+                  {mode === "login" ? "Signing in…" : "Setting password…"}
+                </>
+              ) : (
+                <>
+                  <Lock size={16} />
+                  {mode === "login" ? "Sign In" : "Set password & sign in"}
+                </>
+              )}
+            </button>
+          </form>
+
+          {/* Secondary action */}
+          <div className="mt-8 border-t border-line pt-6 text-center">
+            <p className="mb-3 text-[13px] text-ink-muted">
+              {mode === "login" ? "New to WorkLog?" : "Already activated?"}
+            </p>
+            <button
+              onClick={() => {
+                setMode(mode === "login" ? "activate" : "login");
+                setError(null);
+              }}
+              className="inline-flex h-9 w-full items-center justify-center rounded-lg border border-outline text-xs font-semibold uppercase tracking-wider text-ink transition-colors hover:bg-surface-low"
+            >
+              {mode === "login" ? "First-time user: Set password" : "Back to sign in"}
+            </button>
+          </div>
+        </section>
+
+        {/* Footer */}
+        <footer className="mt-8 space-y-2 text-center">
+          <div className="flex items-center justify-center gap-1.5 text-ink-muted">
+            <ShieldCheck size={15} />
+            <span className="text-xs font-medium tracking-wide">
+              SECURE ENCRYPTED SESSION
+            </span>
+          </div>
+          <p className="text-[13px] text-outline">
+            © {new Date().getFullYear()} WorkLog. All rights reserved.
+          </p>
+        </footer>
       </div>
     </main>
   );

@@ -54,7 +54,7 @@ export default function PushSetup({ employeeId }: { employeeId: string }) {
   if (!showPrompt) return null;
 
   return (
-    <div className="fixed inset-x-4 z-30 mx-auto max-w-md rounded-xl bg-slate-900 p-4 text-white shadow-xl sm:max-w-sm bottom-[calc(5.5rem+env(safe-area-inset-bottom))]">
+    <div className="fixed inset-x-4 z-30 mx-auto max-w-md rounded-xl border border-line bg-ink p-4 text-white shadow-lg sm:max-w-sm bottom-[calc(5.5rem+env(safe-area-inset-bottom))]">
       <p className="text-sm">
         Enable notifications to get updates about approvals and your work session.
       </p>
@@ -65,7 +65,7 @@ export default function PushSetup({ employeeId }: { employeeId: string }) {
             const perm = await Notification.requestPermission();
             if (perm === "granted") subscribe(employeeId).catch(() => {});
           }}
-          className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold"
+          className="rounded-lg bg-primary-hover px-4 py-2 text-sm font-semibold"
         >
           Enable
         </button>

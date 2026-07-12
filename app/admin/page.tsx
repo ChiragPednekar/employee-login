@@ -123,8 +123,8 @@ export default function AdminDashboard() {
     <main className="space-y-6 p-4">
       {/* Greeting */}
       <div className="pt-1">
-        <h1 className="text-xl font-semibold tracking-tight text-slate-900">{greeting()} 👋</h1>
-        <p className="mt-0.5 text-sm text-slate-500">Here&apos;s what needs your attention today.</p>
+        <h1 className="text-xl font-semibold tracking-tight text-ink">{greeting()} 👋</h1>
+        <p className="mt-0.5 text-sm text-ink-muted">Here&apos;s what needs your attention today.</p>
       </div>
 
       {/* Quick actions */}
@@ -155,7 +155,7 @@ export default function AdminDashboard() {
             value={presentToday}
             sub={`of ${employeeCount} employees`}
             icon={Users}
-            tone="indigo"
+            tone="primary"
           />
           <StatCard
             label="Location requests"
@@ -181,12 +181,12 @@ export default function AdminDashboard() {
       <Card className="p-4 lg:col-span-2">
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <TrendingUp size={16} className="text-indigo-500" strokeWidth={2.25} />
-            <h2 className="text-sm font-semibold text-slate-900">Attendance this week</h2>
+            <TrendingUp size={16} className="text-primary" strokeWidth={2.25} />
+            <h2 className="text-sm font-semibold text-ink">Attendance this week</h2>
           </div>
           <div className="text-right">
-            <p className="text-lg font-semibold leading-none text-slate-900">{attendanceRate}%</p>
-            <p className="text-[11px] text-slate-400">avg. present</p>
+            <p className="text-lg font-semibold leading-none text-ink">{attendanceRate}%</p>
+            <p className="text-[11px] text-outline">avg. present</p>
           </div>
         </div>
         {!loaded ? (
@@ -201,14 +201,14 @@ export default function AdminDashboard() {
                 {/* Pixel heights: % heights don't resolve inside a content-sized flex parent */}
                 <div
                   className={`w-full max-w-10 rounded-md transition-all duration-500 ${
-                    d.count > 0 ? "bg-indigo-500/90" : "bg-slate-200/80"
+                    d.count > 0 ? "bg-primary" : "bg-slate-200/80"
                   }`}
                   style={{
                     height: `${d.count > 0 ? Math.max(10, Math.round((d.count / maxTrend) * 84)) : 4}px`,
                   }}
                   title={`${d.count} present on ${d.date}`}
                 />
-                <span className="text-[11px] font-medium text-slate-400">{d.label}</span>
+                <span className="text-[11px] font-medium text-outline">{d.label}</span>
               </div>
             ))}
           </div>
@@ -235,11 +235,11 @@ export default function AdminDashboard() {
             {today.map((s) => (
               <Card key={s.id} className="flex items-center justify-between p-4">
                 <div className="min-w-0">
-                  <p className="truncate font-medium text-slate-900">
+                  <p className="truncate font-medium text-ink">
                     {s.employees.name}{" "}
-                    <span className="text-xs font-normal text-slate-400">{s.employees.emp_id}</span>
+                    <span className="text-xs font-normal text-outline">{s.employees.emp_id}</span>
                   </p>
-                  <p className="mt-0.5 text-sm text-slate-500">
+                  <p className="mt-0.5 text-sm text-ink-muted">
                     Started {fmtTime(s.started_at)}
                     {s.ended_at ? ` · ended ${fmtTime(s.ended_at)}` : ""}
                   </p>

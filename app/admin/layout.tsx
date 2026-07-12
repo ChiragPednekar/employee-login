@@ -3,6 +3,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import LogoutButton from "@/components/LogoutButton";
 import PushSetup from "@/components/PushSetup";
 import AdminNav from "@/components/AdminNav";
+import { BriefcaseBusiness } from "lucide-react";
 
 export default async function AdminLayout({
   children,
@@ -26,13 +27,19 @@ export default async function AdminLayout({
 
   return (
     <div className="mx-auto min-h-dvh w-full max-w-6xl px-0 pb-10 lg:px-6">
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur">
-        <div className="flex items-center justify-between px-4 py-3">
-          <div>
-            <p className="text-sm font-bold">{emp.name}</p>
-            <p className="text-xs text-indigo-600">Admin</p>
+      <header className="sticky top-0 z-30 border-b border-line bg-surface/95 backdrop-blur">
+        <div className="flex h-14 items-center justify-between px-4">
+          <div className="flex items-center gap-2">
+            <BriefcaseBusiness size={22} className="text-primary" strokeWidth={2.25} />
+            <span className="text-lg font-bold tracking-tight text-primary">WorkLog</span>
+            <span className="ml-1 rounded bg-primary-tint px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary-deep">
+              Admin
+            </span>
           </div>
-          <LogoutButton />
+          <div className="flex items-center gap-3">
+            <p className="text-[13px] font-semibold text-ink">{emp.name}</p>
+            <LogoutButton />
+          </div>
         </div>
         <AdminNav />
       </header>

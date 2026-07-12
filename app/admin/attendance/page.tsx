@@ -102,53 +102,53 @@ export default function AttendancePage() {
           type="month"
           value={month}
           onChange={(e) => setMonth(e.target.value)}
-          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+          className="rounded-lg border border-line-strong bg-white px-3 py-2 text-sm"
         />
         <button
           onClick={exportCsv}
           disabled={sessions.length === 0}
-          className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
+          className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-40"
         >
           ⬇ Export CSV
         </button>
       </div>
 
       {loaded && summary.length === 0 && (
-        <p className="rounded-2xl bg-white p-8 text-center text-sm text-slate-400 shadow-sm">
+        <p className="rounded-xl border border-dashed border-line-strong bg-white p-8 text-center text-sm text-ink-muted">
           No attendance in this month
         </p>
       )}
 
       <div className="space-y-2">
         {summary.map(([empId, e]) => (
-          <div key={empId} className="overflow-hidden rounded-2xl bg-white shadow-sm">
+          <div key={empId} className="overflow-hidden rounded-xl border border-line bg-white">
             <button
               onClick={() => setExpanded(expanded === empId ? null : empId)}
               className="flex w-full items-center justify-between p-4 text-left"
             >
               <div>
                 <p className="font-bold">
-                  {e.name} <span className="text-xs font-normal text-slate-400">{e.emp_id}</span>
+                  {e.name} <span className="text-xs font-normal text-outline">{e.emp_id}</span>
                 </p>
-                <p className="mt-0.5 text-sm text-slate-500">
+                <p className="mt-0.5 text-sm text-ink-muted">
                   {e.days} day{e.days !== 1 ? "s" : ""} · {fmtMinutes(e.total)}
                   {e.ot > 0 && (
-                    <span className="font-semibold text-indigo-600"> · +{fmtMinutes(e.ot)} OT</span>
+                    <span className="font-semibold text-primary"> · +{fmtMinutes(e.ot)} OT</span>
                   )}
                 </p>
               </div>
-              <span className="text-slate-400">{expanded === empId ? "▲" : "▼"}</span>
+              <span className="text-outline">{expanded === empId ? "▲" : "▼"}</span>
             </button>
             {expanded === empId && (
-              <div className="border-t border-slate-100">
+              <div className="border-t border-line">
                 {e.rows.map((s) => (
                   <div
                     key={s.id}
-                    className="flex items-center justify-between border-b border-slate-50 px-4 py-2.5 text-sm last:border-0"
+                    className="flex items-center justify-between border-b border-line/60 px-4 py-2.5 text-sm last:border-0"
                   >
                     <div>
                       <p className="font-medium">{fmtDate(s.work_date)}</p>
-                      <p className="text-xs text-slate-500">
+                      <p className="text-xs text-ink-muted">
                         {fmtTime(s.started_at)} – {fmtTime(s.ended_at)}
                         {!s.start_location_id && " · ⚠️ unlisted location"}
                         {s.end_out_of_range && " · ⚠️ ended out of range"}
@@ -156,7 +156,7 @@ export default function AttendancePage() {
                     </div>
                     <div className="text-right">
                       <p className="font-semibold">{fmtSessionMinutes(s.total_minutes, s.status)}</p>
-                      <p className="text-xs text-slate-400">{SESSION_STATUS_LABEL[s.status]}</p>
+                      <p className="text-xs text-outline">{SESSION_STATUS_LABEL[s.status]}</p>
                     </div>
                   </div>
                 ))}

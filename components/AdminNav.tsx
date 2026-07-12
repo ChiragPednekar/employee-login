@@ -33,10 +33,10 @@ export default function AdminNav() {
           <Link
             key={t.href}
             href={t.href}
-            className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+            className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
               active
-                ? "bg-indigo-600 text-white shadow-sm shadow-indigo-200"
-                : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                ? "bg-primary text-white"
+                : "text-ink-muted hover:bg-surface-low hover:text-ink"
             }`}
           >
             <Icon size={15} strokeWidth={2.25} />

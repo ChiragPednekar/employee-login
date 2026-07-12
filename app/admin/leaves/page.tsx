@@ -61,43 +61,43 @@ export default function LeavesAdminPage() {
 
   function LeaveCard({ r, actions }: { r: LeaveWithEmp; actions?: boolean }) {
     return (
-      <div className="rounded-2xl bg-white p-4 shadow-sm">
+      <div className="rounded-xl border border-line bg-white p-4">
         <div className="flex items-center justify-between">
           <p className="font-bold">
             {r.employees.name}{" "}
-            <span className="text-xs font-normal text-slate-400">{r.employees.emp_id}</span>
+            <span className="text-xs font-normal text-outline">{r.employees.emp_id}</span>
           </p>
           {!actions && (
             <span
               className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
                 r.status === "approved"
-                  ? "bg-emerald-100 text-emerald-700"
-                  : "bg-red-100 text-red-700"
+                  ? "bg-success-chip text-success-deep"
+                  : "bg-danger-tint text-danger-deep"
               }`}
             >
               {r.status}
             </span>
           )}
         </div>
-        <p className="mt-1 text-sm text-slate-600">
+        <p className="mt-1 text-sm text-ink-muted">
           {fmtDate(r.start_date)}
           {r.end_date !== r.start_date && ` → ${fmtDate(r.end_date)}`} ·{" "}
           {DAY_PART_LABEL[r.day_part]} · <b>{r.days} day{r.days !== 1 ? "s" : ""}</b>
         </p>
-        <p className="mt-2 rounded-lg bg-slate-50 p-2.5 text-sm text-slate-600">“{r.reason}”</p>
+        <p className="mt-2 rounded-lg bg-slate-50 p-2.5 text-sm text-ink-muted">“{r.reason}”</p>
         {actions && (
           <div className="mt-3 flex gap-2">
             <button
               onClick={() => decide(r.id, false)}
               disabled={busyId === r.id}
-              className="flex-1 rounded-xl border border-red-200 py-2.5 font-semibold text-red-600 disabled:opacity-50"
+              className="h-10 flex-1 rounded-lg border border-line-strong text-sm font-semibold uppercase tracking-wide text-ink-muted transition-colors hover:border-danger hover:text-danger disabled:opacity-50"
             >
               Deny
             </button>
             <button
               onClick={() => decide(r.id, true)}
               disabled={busyId === r.id}
-              className="flex-1 rounded-xl bg-emerald-600 py-2.5 font-semibold text-white disabled:opacity-50"
+              className="h-10 flex-1 rounded-lg bg-primary text-sm font-semibold uppercase tracking-wide text-white transition-colors hover:bg-primary-hover disabled:opacity-50"
             >
               Approve
             </button>
@@ -110,9 +110,9 @@ export default function LeavesAdminPage() {
   return (
     <main className="space-y-3 p-4">
       <h1 className="px-1 text-lg font-bold">Leave requests</h1>
-      {error && <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+      {error && <p className="rounded-lg bg-danger-tint p-3 text-sm text-danger-deep">{error}</p>}
       {loaded && pending.length === 0 && (
-        <p className="rounded-2xl bg-white p-8 text-center text-sm text-slate-400 shadow-sm">
+        <p className="rounded-xl border border-dashed border-line-strong bg-white p-8 text-center text-sm text-ink-muted">
           No pending leave requests 🎉
         </p>
       )}
@@ -122,7 +122,7 @@ export default function LeavesAdminPage() {
 
       {recent.length > 0 && (
         <>
-          <p className="px-1 pt-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
+          <p className="px-1 pt-3 text-xs font-semibold uppercase tracking-wide text-outline">
             Recently decided
           </p>
           {recent.map((r) => (

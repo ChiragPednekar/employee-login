@@ -80,28 +80,28 @@ export default function EmployeesPage() {
         <h1 className="text-lg font-bold">Employees</h1>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white"
+          className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
         >
           {showForm ? "Close" : "+ Add employee"}
         </button>
       </div>
 
       {showForm && (
-        <form onSubmit={addEmployee} className="space-y-3 rounded-2xl bg-white p-5 shadow-sm">
+        <form onSubmit={addEmployee} className="space-y-3 rounded-xl border border-line bg-white p-5">
           <div className="grid grid-cols-2 gap-3">
             <input
               required
               placeholder="Emp ID (e.g. EMP005)"
               value={form.emp_id}
               onChange={(e) => setForm({ ...form, emp_id: e.target.value })}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="rounded-lg border border-line-strong px-3 py-2 text-sm"
             />
             <input
               required
               placeholder="Full name"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="rounded-lg border border-line-strong px-3 py-2 text-sm"
             />
           </div>
           <input
@@ -110,32 +110,32 @@ export default function EmployeesPage() {
             placeholder="Email (they log in with this)"
             value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="w-full rounded-lg border border-line-strong px-3 py-2 text-sm"
           />
           <div className="grid grid-cols-2 gap-3">
             <input
               placeholder="Contact number"
               value={form.contact}
               onChange={(e) => setForm({ ...form, contact: e.target.value })}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="rounded-lg border border-line-strong px-3 py-2 text-sm"
             />
             <select
               value={form.role}
               onChange={(e) => setForm({ ...form, role: e.target.value })}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+              className="rounded-lg border border-line-strong bg-white px-3 py-2 text-sm"
             >
               <option value="employee">Employee</option>
               <option value="admin">Admin</option>
             </select>
           </div>
-          {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+          {error && <p className="rounded-lg bg-danger-tint px-3 py-2 text-sm text-danger-deep">{error}</p>}
           <button
             disabled={busy}
-            className="w-full rounded-xl bg-indigo-600 py-2.5 font-bold text-white disabled:opacity-50"
+            className="w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-50"
           >
             {busy ? "Adding…" : "Add employee"}
           </button>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-outline">
             The employee sets their own password the first time they open the app.
           </p>
         </form>
@@ -145,24 +145,24 @@ export default function EmployeesPage() {
         {employees.map((emp) => {
           const bal = balances[emp.id];
           return (
-            <div key={emp.id} className={`rounded-2xl bg-white p-4 shadow-sm ${!emp.active ? "opacity-50" : ""}`}>
+            <div key={emp.id} className={`rounded-xl border border-line bg-white p-4 ${!emp.active ? "opacity-50" : ""}`}>
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-bold">
                     {emp.name}{" "}
-                    <span className="text-xs font-normal text-slate-400">{emp.emp_id}</span>
+                    <span className="text-xs font-normal text-outline">{emp.emp_id}</span>
                     {emp.role === "admin" && (
-                      <span className="ml-1.5 rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700">
+                      <span className="ml-1.5 rounded-full bg-primary-tint px-2 py-0.5 text-xs font-semibold text-primary-deep">
                         admin
                       </span>
                     )}
                     {!emp.auth_user_id && (
-                      <span className="ml-1.5 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
+                      <span className="ml-1.5 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-ink-muted">
                         not activated
                       </span>
                     )}
                   </p>
-                  <p className="text-sm text-slate-500">
+                  <p className="text-sm text-ink-muted">
                     {emp.email}
                     {emp.contact ? ` · ${emp.contact}` : ""}
                   </p>
@@ -170,14 +170,14 @@ export default function EmployeesPage() {
                 <button
                   onClick={() => toggleActive(emp)}
                   className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${
-                    emp.active ? "bg-slate-100 text-slate-500" : "bg-emerald-100 text-emerald-700"
+                    emp.active ? "bg-slate-100 text-ink-muted" : "bg-emerald-100 text-emerald-700"
                   }`}
                 >
                   {emp.active ? "Deactivate" : "Reactivate"}
                 </button>
               </div>
               <div className="mt-2 flex items-center gap-2 text-sm">
-                <span className="text-slate-500">
+                <span className="text-ink-muted">
                   Leave {year}: <b>{bal ? `${bal.quota - bal.used} / ${bal.quota}` : "—"}</b> left
                 </span>
                 {quotaEdit?.id === emp.id ? (
@@ -188,19 +188,19 @@ export default function EmployeesPage() {
                       min="0"
                       value={quotaEdit.quota}
                       onChange={(e) => setQuotaEdit({ id: emp.id, quota: e.target.value })}
-                      className="w-20 rounded-lg border border-slate-300 px-2 py-1 text-sm"
+                      className="w-20 rounded-lg border border-line-strong px-2 py-1 text-sm"
                     />
                     <button onClick={saveQuota} className="text-xs font-bold text-emerald-600">
                       Save
                     </button>
-                    <button onClick={() => setQuotaEdit(null)} className="text-xs text-slate-400">
+                    <button onClick={() => setQuotaEdit(null)} className="text-xs text-outline">
                       Cancel
                     </button>
                   </span>
                 ) : (
                   <button
                     onClick={() => setQuotaEdit({ id: emp.id, quota: String(bal?.quota ?? 12) })}
-                    className="text-xs font-semibold text-indigo-600"
+                    className="text-xs font-semibold text-primary"
                   >
                     Edit quota
                   </button>

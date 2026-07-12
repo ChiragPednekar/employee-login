@@ -1,6 +1,43 @@
 @import "tailwindcss";
 
+/* Precision Enterprise design tokens (from Stitch design system) */
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  --color-primary: #003ec7; /* Action Blue */
+  --color-primary-hover: #0052ff; /* primary-container */
+  --color-primary-tint: #dde1ff; /* primary-fixed */
+  --color-primary-deep: #0038b6; /* on-primary-fixed-variant */
+
+  --color-surface: #faf8ff; /* app background */
+  --color-surface-low: #f2f3ff; /* subtle wash */
+  --color-ink: #131b2e; /* on-surface */
+  --color-ink-muted: #434656; /* on-surface-variant */
+  --color-line: #e2e8f0; /* card borders */
+  --color-line-strong: #c3c5d9; /* input borders */
+  --color-outline: #737688;
+
+  --color-success: #059669;
+  --color-success-tint: #ecfdf5;
+  --color-success-chip: #dcfce7;
+  --color-success-deep: #166534;
+  --color-danger: #ba1a1a;
+  --color-danger-tint: #ffdad6;
+  --color-danger-deep: #93000a;
+}
+
 html,
 body {
   height: 100%;
+}
+
+body {
+  font-feature-settings: "tnum" on; /* tabular numerals for data */
+}
+
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
 }

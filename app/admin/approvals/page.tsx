@@ -53,26 +53,26 @@ export default function ApprovalsPage() {
   return (
     <main className="space-y-3 p-4">
       <h1 className="px-1 text-lg font-bold">Location approval requests</h1>
-      {error && <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+      {error && <p className="rounded-lg bg-danger-tint p-3 text-sm text-danger-deep">{error}</p>}
       {loaded && pending.length === 0 && (
-        <p className="rounded-2xl bg-white p-8 text-center text-sm text-slate-400 shadow-sm">
+        <p className="rounded-xl border border-dashed border-line-strong bg-white p-8 text-center text-sm text-ink-muted">
           No pending requests 🎉
         </p>
       )}
       {pending.map((s) => (
-        <div key={s.id} className="rounded-2xl bg-white p-4 shadow-sm">
+        <div key={s.id} className="rounded-xl border border-line bg-white p-4">
           <div className="flex items-start justify-between">
             <div>
               <p className="font-bold">
                 {s.employees.name}{" "}
-                <span className="text-xs font-normal text-slate-400">{s.employees.emp_id}</span>
+                <span className="text-xs font-normal text-outline">{s.employees.emp_id}</span>
               </p>
-              <p className="mt-0.5 text-sm text-slate-500">
+              <p className="mt-0.5 text-sm text-ink-muted">
                 {fmtDate(s.work_date)} · pressed Start at {fmtTime(s.started_at)}
                 {s.ended_at ? ` · pressed Done at ${fmtTime(s.ended_at)}` : " · still working"}
               </p>
               {s.employees.contact && (
-                <a href={`tel:${s.employees.contact}`} className="text-sm text-indigo-600">
+                <a href={`tel:${s.employees.contact}`} className="text-sm text-primary">
                   📞 {s.employees.contact}
                 </a>
               )}
@@ -82,7 +82,7 @@ export default function ApprovalsPage() {
             href={`https://www.google.com/maps?q=${s.start_lat},${s.start_lng}`}
             target="_blank"
             rel="noreferrer"
-            className="mt-2 block rounded-xl bg-slate-50 p-3 text-sm text-indigo-600"
+            className="mt-2 block rounded-xl bg-slate-50 p-3 text-sm text-primary"
           >
             📍 View their location on Google Maps →
           </a>
@@ -90,14 +90,14 @@ export default function ApprovalsPage() {
             <button
               onClick={() => decide(s.id, false)}
               disabled={busyId === s.id}
-              className="flex-1 rounded-xl border border-red-200 py-2.5 font-semibold text-red-600 disabled:opacity-50"
+              className="h-10 flex-1 rounded-lg border border-line-strong text-sm font-semibold uppercase tracking-wide text-ink-muted transition-colors hover:border-danger hover:text-danger disabled:opacity-50"
             >
               Deny
             </button>
             <button
               onClick={() => decide(s.id, true)}
               disabled={busyId === s.id}
-              className="flex-1 rounded-xl bg-emerald-600 py-2.5 font-semibold text-white disabled:opacity-50"
+              className="h-10 flex-1 rounded-lg bg-primary text-sm font-semibold uppercase tracking-wide text-white transition-colors hover:bg-primary-hover disabled:opacity-50"
             >
               Approve
             </button>
