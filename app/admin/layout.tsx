@@ -23,7 +23,7 @@ export default async function AdminLayout({
     .maybeSingle();
 
   if (!emp) redirect("/login");
-  if (emp.role !== "admin") redirect("/");
+  if (emp.role !== "admin" && emp.role !== "manager") redirect("/");
 
   return (
     <div className="mx-auto min-h-dvh w-full max-w-6xl px-0 pb-10 lg:px-6">
@@ -33,7 +33,7 @@ export default async function AdminLayout({
             <BriefcaseBusiness size={22} className="text-primary" strokeWidth={2.25} />
             <span className="text-lg font-bold tracking-tight text-primary">WorkLog</span>
             <span className="ml-1 rounded bg-primary-tint px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary-deep">
-              Admin
+              {emp.role === "manager" ? "Manager" : "Admin"}
             </span>
           </div>
           <div className="flex items-center gap-3">
@@ -41,7 +41,7 @@ export default async function AdminLayout({
             <LogoutButton />
           </div>
         </div>
-        <AdminNav />
+        <AdminNav role={emp.role} />
       </header>
       {children}
       <PushSetup employeeId={emp.id} />

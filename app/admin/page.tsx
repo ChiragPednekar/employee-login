@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { istToday } from "@/lib/hooks";
+import { istToday, useMe } from "@/lib/hooks";
 import { fmtTime, elapsedSince } from "@/lib/format";
 import type { WorkSession, Employee } from "@/lib/types";
 import {
@@ -37,6 +37,7 @@ function greeting() {
 }
 
 export default function AdminDashboard() {
+  const { me } = useMe();
   const [today, setToday] = useState<SessionWithEmp[]>([]);
   const [weekRows, setWeekRows] = useState<{ work_date: string; employee_id: string }[]>([]);
   const [pendingSessions, setPendingSessions] = useState(0);
@@ -130,7 +131,9 @@ export default function AdminDashboard() {
       {/* Quick actions */}
       <div className="flex flex-wrap gap-2">
         <QuickAction label="Approve requests" icon={CheckCircle2} href="/admin/approvals" />
-        <QuickAction label="Add employee" icon={UserPlus} href="/admin/employees" />
+        {me?.role === "admin" && (
+          <QuickAction label="Add employee" icon={UserPlus} href="/admin/employees" />
+        )}
         <QuickAction label="View attendance" icon={CalendarClock} href="/admin/attendance" />
       </div>
 

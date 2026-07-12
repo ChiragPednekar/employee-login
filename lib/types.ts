@@ -4,7 +4,9 @@ export type Employee = {
   name: string;
   email: string;
   contact: string | null;
-  role: "employee" | "admin";
+  role: "employee" | "manager" | "admin";
+  department: string | null;
+  manager_id: string | null;
   auth_user_id: string | null;
   active: boolean;
 };

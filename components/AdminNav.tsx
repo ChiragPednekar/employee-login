@@ -9,24 +9,33 @@ import {
   CalendarClock,
   Users,
   Building2,
+  Timer,
 } from "lucide-react";
 import type { LucideProps } from "lucide-react";
 import type { ComponentType } from "react";
 
-const tabs: { href: string; label: string; icon: ComponentType<LucideProps> }[] = [
+type Tab = {
+  href: string;
+  label: string;
+  icon: ComponentType<LucideProps>;
+  adminOnly?: boolean;
+};
+
+const tabs: Tab[] = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
   { href: "/admin/approvals", label: "Approvals", icon: MapPin },
   { href: "/admin/leaves", label: "Leaves", icon: Plane },
   { href: "/admin/attendance", label: "Attendance", icon: CalendarClock },
-  { href: "/admin/employees", label: "Employees", icon: Users },
-  { href: "/admin/locations", label: "Locations", icon: Building2 },
+  { href: "/admin/employees", label: "Employees", icon: Users, adminOnly: true },
+  { href: "/admin/locations", label: "Locations", icon: Building2, adminOnly: true },
 ];
 
-export default function AdminNav() {
+export default function AdminNav({ role }: { role: string }) {
   const pathname = usePathname();
+  const visible = tabs.filter((t) => !t.adminOnly || role === "admin");
   return (
     <nav className="scrollbar-none flex gap-1.5 overflow-x-auto px-3 pb-2.5">
-      {tabs.map((t) => {
+      {visible.map((t) => {
         const active = pathname === t.href;
         const Icon = t.icon;
         return (
@@ -44,6 +53,15 @@ export default function AdminNav() {
           </Link>
         );
       })}
+      {role === "manager" && (
+        <Link
+          href="/"
+          className="ml-auto flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-line-strong px-3 py-1.5 text-sm font-medium text-ink-muted transition-colors hover:bg-surface-low hover:text-ink"
+        >
+          <Timer size={15} strokeWidth={2.25} />
+          My attendance
+        </Link>
+      )}
     </nav>
   );
 }

@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase/server";
+import Link from "next/link";
 import BottomNav from "@/components/BottomNav";
 import LogoutButton from "@/components/LogoutButton";
 import PushSetup from "@/components/PushSetup";
-import { BriefcaseBusiness } from "lucide-react";
+import { BriefcaseBusiness, Users } from "lucide-react";
 
 export default async function EmployeeLayout({
   children,
@@ -33,6 +34,15 @@ export default async function EmployeeLayout({
           <span className="text-lg font-bold tracking-tight text-primary">WorkLog</span>
         </div>
         <div className="flex items-center gap-3">
+          {emp.role === "manager" && (
+            <Link
+              href="/admin"
+              className="flex h-8 items-center gap-1.5 rounded-lg border border-primary-tint bg-surface-low px-2.5 text-xs font-semibold text-primary transition-colors hover:bg-primary-tint/50"
+            >
+              <Users size={13} />
+              Team
+            </Link>
+          )}
           <div className="text-right">
             <p className="text-[13px] font-semibold leading-4 text-ink">{emp.name}</p>
             <p className="text-[11px] font-medium uppercase tracking-wider text-ink-muted">
