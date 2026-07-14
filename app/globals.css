@@ -15,7 +15,9 @@
   --color-ink-muted: #434656; /* on-surface-variant */
   --color-line: #e2e8f0; /* card borders */
   --color-line-strong: #c3c5d9; /* input borders */
-  --color-outline: #737688;
+  /* Slightly darker than the design's #737688 so 11-13px secondary text
+     clears WCAG AA (4.5:1) on the #faf8ff surface as well as on white */
+  --color-outline: #666a7e;
 
   --color-success: #059669;
   --color-success-tint: #ecfdf5;
@@ -40,4 +42,23 @@ body {
 }
 .scrollbar-none::-webkit-scrollbar {
   display: none;
+}
+
+/* Accessibility: consistent, visible keyboard focus */
+:focus-visible {
+  outline: 2px solid #003ec7;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Accessibility: respect reduced-motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

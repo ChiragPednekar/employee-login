@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useId } from "react";
+
 export default function ConfirmDialog({
   open,
   title,
@@ -19,11 +21,29 @@ export default function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const titleId = useId();
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !busy) onCancel();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, busy, onCancel]);
+
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 p-4 sm:items-center">
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 p-4 sm:items-center"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+    >
       <div className="w-full max-w-sm rounded-xl border border-line bg-white p-6 shadow-lg">
-        <h2 className="text-lg font-semibold tracking-tight text-ink">{title}</h2>
+        <h2 id={titleId} className="text-lg font-semibold tracking-tight text-ink">
+          {title}
+        </h2>
         <p className="mt-2 text-sm text-ink-muted">{message}</p>
         <div className="mt-6 flex gap-3">
           <button
@@ -36,6 +56,7 @@ export default function ConfirmDialog({
           <button
             onClick={onConfirm}
             disabled={busy}
+            autoFocus
             className={`h-11 flex-1 rounded-lg text-sm font-semibold text-white transition-all active:scale-[0.98] disabled:opacity-50 ${
               danger ? "bg-danger hover:bg-danger/90" : "bg-primary hover:bg-primary-hover"
             }`}

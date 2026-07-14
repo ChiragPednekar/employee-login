@@ -5,6 +5,8 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 import { nudgePushProcessor } from "@/lib/hooks";
 import { fmtDate } from "@/lib/format";
 import type { LeaveRequest, Employee } from "@/lib/types";
+import { EmptyState } from "@/components/ui";
+import { PlaneTakeoff } from "lucide-react";
 
 type LeaveWithEmp = LeaveRequest & { employees: Pick<Employee, "name" | "emp_id"> };
 
@@ -112,9 +114,11 @@ export default function LeavesAdminPage() {
       <h1 className="px-1 text-lg font-bold">Leave requests</h1>
       {error && <p className="rounded-lg bg-danger-tint p-3 text-sm text-danger-deep">{error}</p>}
       {loaded && pending.length === 0 && (
-        <p className="rounded-xl border border-dashed border-line-strong bg-white p-8 text-center text-sm text-ink-muted">
-          No pending leave requests 🎉
-        </p>
+        <EmptyState
+          icon={PlaneTakeoff}
+          title="No pending leave requests 🎉"
+          hint="New applications will show up here for approval."
+        />
       )}
       {pending.map((r) => (
         <LeaveCard key={r.id} r={r} actions />

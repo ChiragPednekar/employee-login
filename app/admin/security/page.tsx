@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { Card } from "@/components/ui";
+import { Card, Skeleton } from "@/components/ui";
 import { ShieldCheck, ShieldAlert, Smartphone, Copy, Check } from "lucide-react";
 
 type Factor = { id: string; status: string; friendly_name?: string | null };
@@ -101,7 +101,7 @@ export default function SecurityPage() {
       </div>
 
       {!loaded ? (
-        <p className="p-6 text-center text-sm text-ink-muted">Loading…</p>
+        <Skeleton className="h-36 w-full" />
       ) : verified && !enroll ? (
         <Card featured className="p-6">
           <div className="flex items-start gap-3">

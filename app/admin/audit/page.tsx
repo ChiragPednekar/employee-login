@@ -12,7 +12,7 @@ import {
   FLAG_TONE,
   type SessionFlag,
 } from "@/lib/analytics";
-import { Card, Badge, EmptyState, SectionTitle } from "@/components/ui";
+import { Card, Badge, EmptyState, SectionTitle, Skeleton } from "@/components/ui";
 import { ShieldCheck, MapPin } from "lucide-react";
 
 type Row = WorkSession & {
@@ -82,6 +82,7 @@ export default function AuditPage() {
         </div>
         <input
           type="month"
+          aria-label="Select month"
           value={month}
           onChange={(e) => setMonth(e.target.value)}
           className="h-9 rounded-lg border border-line-strong bg-white px-3 text-sm"
@@ -115,7 +116,11 @@ export default function AuditPage() {
       </div>
 
       {!loaded ? (
-        <p className="p-6 text-center text-sm text-ink-muted">Loading…</p>
+        <div className="space-y-2">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 w-full" />
+          ))}
+        </div>
       ) : flagged.length === 0 ? (
         <EmptyState
           icon={ShieldCheck}

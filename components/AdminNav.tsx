@@ -42,7 +42,7 @@ export default function AdminNav({ role }: { role: string }) {
   const pathname = usePathname();
   const visible = tabs.filter((t) => !t.adminOnly || role === "admin");
   return (
-    <nav className="scrollbar-none flex gap-1.5 overflow-x-auto px-3 pb-2.5">
+    <nav aria-label="Admin sections" className="scrollbar-none flex gap-1.5 overflow-x-auto px-3 pb-2.5">
       {visible.map((t) => {
         const active = pathname === t.href;
         const Icon = t.icon;

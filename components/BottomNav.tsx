@@ -15,7 +15,10 @@ const tabs: { href: string; label: string; icon: ComponentType<LucideProps> }[] 
 export default function BottomNav() {
   const pathname = usePathname();
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-white pb-[env(safe-area-inset-bottom)]">
+    <nav
+      aria-label="Main navigation"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-white pb-[env(safe-area-inset-bottom)]"
+    >
       <div className="mx-auto flex max-w-2xl">
         {tabs.map((t) => {
           const active = pathname === t.href;

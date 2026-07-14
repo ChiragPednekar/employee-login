@@ -5,6 +5,8 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 import { istToday } from "@/lib/hooks";
 import { fmtDate, fmtMinutes, fmtSessionMinutes, fmtTime, SESSION_STATUS_LABEL } from "@/lib/format";
 import type { WorkSession, Employee } from "@/lib/types";
+import { EmptyState } from "@/components/ui";
+import { CalendarX2 } from "lucide-react";
 
 type SessionWithEmp = WorkSession & { employees: Pick<Employee, "name" | "emp_id"> };
 
@@ -100,6 +102,7 @@ export default function AttendancePage() {
       <div className="flex items-center justify-between gap-3">
         <input
           type="month"
+          aria-label="Select month"
           value={month}
           onChange={(e) => setMonth(e.target.value)}
           className="rounded-lg border border-line-strong bg-white px-3 py-2 text-sm"
@@ -114,9 +117,11 @@ export default function AttendancePage() {
       </div>
 
       {loaded && summary.length === 0 && (
-        <p className="rounded-xl border border-dashed border-line-strong bg-white p-8 text-center text-sm text-ink-muted">
-          No attendance in this month
-        </p>
+        <EmptyState
+          icon={CalendarX2}
+          title="No attendance in this month"
+          hint="Pick another month above."
+        />
       )}
 
       <div className="space-y-2">
@@ -124,6 +129,8 @@ export default function AttendancePage() {
           <div key={empId} className="overflow-hidden rounded-xl border border-line bg-white">
             <button
               onClick={() => setExpanded(expanded === empId ? null : empId)}
+              aria-expanded={expanded === empId}
+              aria-label={`${e.name} attendance details`}
               className="flex w-full items-center justify-between p-4 text-left"
             >
               <div>

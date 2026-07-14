@@ -214,6 +214,7 @@ export default function AnalyticsPage() {
         <div className="flex items-center gap-2">
           <input
             type="month"
+          aria-label="Select month"
             value={month}
             onChange={(e) => setMonth(e.target.value)}
             className="h-9 rounded-lg border border-line-strong bg-white px-3 text-sm"

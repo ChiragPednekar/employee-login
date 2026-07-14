@@ -112,6 +112,11 @@ export default function DateRangePicker({
           const inRange = mode === "range" && start && end && key > start && key < end;
           const selected = isStart || isEnd;
 
+          const dateLabel = d.toLocaleDateString("en-US", {
+            weekday: "long",
+            month: "long",
+            day: "numeric",
+          });
           return (
             <button
               key={i}
@@ -119,6 +124,8 @@ export default function DateRangePicker({
               disabled={disabled}
               onClick={() => handleClick(d)}
               title={holiday}
+              aria-label={holiday ? `${dateLabel} — ${holiday}` : dateLabel}
+              aria-pressed={selected || inRange ? true : false}
               className={`relative flex h-9 items-center justify-center rounded-lg text-sm transition-colors ${
                 selected
                   ? "bg-primary font-semibold text-white"

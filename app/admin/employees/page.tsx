@@ -320,6 +320,8 @@ export default function EmployeesPage() {
         <div className="relative">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
           <input
+            type="search"
+            aria-label="Search employees"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search name, ID, email, phone, department…"
@@ -328,6 +330,7 @@ export default function EmployeesPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           <select
+            aria-label="Filter by role"
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
             className="h-9 rounded-lg border border-line-strong bg-white px-2.5 text-sm text-ink"
@@ -338,6 +341,7 @@ export default function EmployeesPage() {
             <option value="employee">Employees</option>
           </select>
           <select
+            aria-label="Filter by department"
             value={deptFilter}
             onChange={(e) => setDeptFilter(e.target.value)}
             className="h-9 rounded-lg border border-line-strong bg-white px-2.5 text-sm text-ink"
@@ -351,6 +355,7 @@ export default function EmployeesPage() {
             <option value="—">No department</option>
           </select>
           <select
+            aria-label="Filter by status"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             className="h-9 rounded-lg border border-line-strong bg-white px-2.5 text-sm text-ink"

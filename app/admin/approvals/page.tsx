@@ -5,6 +5,8 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 import { nudgePushProcessor } from "@/lib/hooks";
 import { fmtDate, fmtTime } from "@/lib/format";
 import type { WorkSession, Employee } from "@/lib/types";
+import { EmptyState } from "@/components/ui";
+import { MapPinCheck } from "lucide-react";
 
 type PendingSession = WorkSession & {
   start_lat: number;
@@ -55,9 +57,11 @@ export default function ApprovalsPage() {
       <h1 className="px-1 text-lg font-bold">Location approval requests</h1>
       {error && <p className="rounded-lg bg-danger-tint p-3 text-sm text-danger-deep">{error}</p>}
       {loaded && pending.length === 0 && (
-        <p className="rounded-xl border border-dashed border-line-strong bg-white p-8 text-center text-sm text-ink-muted">
-          No pending requests 🎉
-        </p>
+        <EmptyState
+          icon={MapPinCheck}
+          title="No pending requests 🎉"
+          hint="Out-of-location clock-ins will appear here for approval."
+        />
       )}
       {pending.map((s) => (
         <div key={s.id} className="rounded-xl border border-line bg-white p-4">
