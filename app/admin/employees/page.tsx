@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { istToday } from "@/lib/hooks";
+import { istToday, useMe } from "@/lib/hooks";
 import type { Employee, LeaveBalance } from "@/lib/types";
 import Avatar from "@/components/Avatar";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import { Badge, Card, EmptyState, FieldLabel, inputCls } from "@/components/ui";
-import { Search, UserPlus, X, Users } from "lucide-react";
+import { Search, UserPlus, X, Users, KeyRound } from "lucide-react";
 
 const ROLE_TONE = { admin: "indigo", manager: "emerald", employee: "slate" } as const;
 
@@ -21,12 +22,16 @@ const emptyForm = {
 };
 
 export default function EmployeesPage() {
+  const { me } = useMe();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [balances, setBalances] = useState<Record<string, LeaveBalance>>({});
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [quotaEdit, setQuotaEdit] = useState<{ id: string; quota: string } | null>(null);
+  const [resetTarget, setResetTarget] = useState<Employee | null>(null);
+  const [resetBusy, setResetBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -147,6 +152,32 @@ export default function EmployeesPage() {
 
   async function toggleActive(emp: Employee) {
     await supabaseBrowser().from("employees").update({ active: !emp.active }).eq("id", emp.id);
+    refresh();
+  }
+
+  async function doReset() {
+    if (!resetTarget) return;
+    setResetBusy(true);
+    setError(null);
+    setNotice(null);
+    const { data, error } = await supabaseBrowser().functions.invoke("admin-reset-password", {
+      body: { employee_id: resetTarget.id },
+    });
+    setResetBusy(false);
+    if (error || !data?.ok) {
+      let msg = "Could not reset this login.";
+      try {
+        const body = await (error as { context?: Response })?.context?.json();
+        if (body?.error) msg = body.error;
+      } catch {}
+      setError(msg);
+      setResetTarget(null);
+      return;
+    }
+    setNotice(
+      `${resetTarget.name}'s login was reset. They can now set a new password via “First time here?” with their email.`
+    );
+    setResetTarget(null);
     refresh();
   }
 
@@ -277,6 +308,13 @@ export default function EmployeesPage() {
         </Card>
       )}
 
+      {notice && (
+        <p className="rounded-lg bg-success-chip px-3 py-2 text-sm text-success-deep">{notice}</p>
+      )}
+      {error && !showForm && (
+        <p className="rounded-lg bg-danger-tint px-3 py-2 text-sm text-danger-deep">{error}</p>
+      )}
+
       {/* Search + filters */}
       <div className="space-y-2">
         <div className="relative">
@@ -370,16 +408,28 @@ export default function EmployeesPage() {
                             </p>
                           </div>
                         </div>
-                        <button
-                          onClick={() => toggleActive(emp)}
-                          className={`h-8 shrink-0 rounded-lg px-2.5 text-xs font-semibold transition-colors ${
-                            emp.active
-                              ? "bg-slate-100 text-ink-muted hover:bg-slate-200"
-                              : "bg-success-chip text-success-deep"
-                          }`}
-                        >
-                          {emp.active ? "Deactivate" : "Reactivate"}
-                        </button>
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          {emp.active && emp.auth_user_id && emp.id !== me?.id && (
+                            <button
+                              onClick={() => setResetTarget(emp)}
+                              title="Reset password"
+                              className="flex h-8 items-center gap-1 rounded-lg bg-slate-100 px-2.5 text-xs font-semibold text-ink-muted transition-colors hover:bg-slate-200"
+                            >
+                              <KeyRound size={13} />
+                              Reset
+                            </button>
+                          )}
+                          <button
+                            onClick={() => toggleActive(emp)}
+                            className={`h-8 rounded-lg px-2.5 text-xs font-semibold transition-colors ${
+                              emp.active
+                                ? "bg-slate-100 text-ink-muted hover:bg-slate-200"
+                                : "bg-success-chip text-success-deep"
+                            }`}
+                          >
+                            {emp.active ? "Deactivate" : "Reactivate"}
+                          </button>
+                        </div>
                       </div>
                       <div className="mt-2 flex items-center gap-2 pl-[52px] text-[13px]">
                         <span className="text-ink-muted">
@@ -428,6 +478,17 @@ export default function EmployeesPage() {
           </div>
         ))
       )}
+
+      <ConfirmDialog
+        open={!!resetTarget}
+        title="Reset this login?"
+        message={`${resetTarget?.name}'s password will be cleared. Their attendance and leave history stay intact — they'll set a new password via “First time here?” with their email. Do this only if they've forgotten their password.`}
+        confirmLabel="Reset login"
+        danger
+        busy={resetBusy}
+        onConfirm={doReset}
+        onCancel={() => setResetTarget(null)}
+      />
     </main>
   );
 }

@@ -18,6 +18,9 @@ export default function LoginPage() {
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // 2FA challenge step
+  const [mfaFactorId, setMfaFactorId] = useState<string | null>(null);
+  const [mfaCode, setMfaCode] = useState("");
 
   async function routeByRole() {
     const { data } = await supabase
@@ -27,6 +30,22 @@ export default function LoginPage() {
       .maybeSingle();
     router.replace(data?.role === "admin" ? "/admin" : "/");
     router.refresh();
+  }
+
+  // After a password sign-in, step up to 2FA if the account has a verified factor.
+  async function continueAfterPassword() {
+    const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (aal?.nextLevel === "aal2" && aal.currentLevel !== "aal2") {
+      const { data: factors } = await supabase.auth.mfa.listFactors();
+      const totp =
+        factors?.totp?.find((f) => f.status === "verified") ?? factors?.totp?.[0];
+      if (totp) {
+        setMfaFactorId(totp.id);
+        setBusy(false);
+        return;
+      }
+    }
+    await routeByRole();
   }
 
   async function handleLogin(e: React.FormEvent) {
@@ -46,7 +65,41 @@ export default function LoginPage() {
       setBusy(false);
       return;
     }
+    await continueAfterPassword();
+  }
+
+  async function handleMfa(e: React.FormEvent) {
+    e.preventDefault();
+    if (!mfaFactorId) return;
+    setError(null);
+    setBusy(true);
+    const { data: ch, error: chErr } = await supabase.auth.mfa.challenge({
+      factorId: mfaFactorId,
+    });
+    if (chErr || !ch) {
+      setBusy(false);
+      setError(chErr?.message ?? "Could not start the 2FA challenge.");
+      return;
+    }
+    const { error: vErr } = await supabase.auth.mfa.verify({
+      factorId: mfaFactorId,
+      challengeId: ch.id,
+      code: mfaCode.trim(),
+    });
+    if (vErr) {
+      setBusy(false);
+      setError("That code didn't match. Try the current code from your authenticator.");
+      return;
+    }
     await routeByRole();
+  }
+
+  async function cancelMfa() {
+    await supabase.auth.signOut();
+    setMfaFactorId(null);
+    setMfaCode("");
+    setPassword("");
+    setError(null);
   }
 
   async function handleActivate(e: React.FormEvent) {
@@ -102,6 +155,48 @@ export default function LoginPage() {
 
         {/* Authentication card */}
         <section className="w-full rounded-lg border border-line bg-white p-8">
+          {mfaFactorId ? (
+            <form onSubmit={handleMfa} className="space-y-5">
+              <div className="text-center">
+                <p className="text-sm font-semibold text-ink">Two-factor authentication</p>
+                <p className="mt-1 text-[13px] text-ink-muted">
+                  Enter the 6-digit code from your authenticator app.
+                </p>
+              </div>
+              <input
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={6}
+                required
+                autoFocus
+                value={mfaCode}
+                onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, ""))}
+                placeholder="000000"
+                className="h-12 w-full rounded-lg border border-line-strong bg-white text-center font-mono text-xl tracking-[0.4em] outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+              />
+              {error && (
+                <p className="rounded-lg bg-danger-tint px-3 py-2 text-sm text-danger-deep">
+                  {error}
+                </p>
+              )}
+              <button
+                type="submit"
+                disabled={busy || mfaCode.length !== 6}
+                className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-primary text-sm font-semibold text-white transition-all hover:bg-primary-hover active:scale-[0.98] disabled:opacity-60"
+              >
+                {busy ? <LoaderCircle size={17} className="animate-spin" /> : <ShieldCheck size={16} />}
+                Verify
+              </button>
+              <button
+                type="button"
+                onClick={cancelMfa}
+                className="w-full text-center text-sm font-medium text-ink-muted hover:underline"
+              >
+                Cancel
+              </button>
+            </form>
+          ) : (
+          <>
           <form
             onSubmit={mode === "login" ? handleLogin : handleActivate}
             className="space-y-6"
@@ -201,6 +296,8 @@ export default function LoginPage() {
               {mode === "login" ? "First-time user: Set password" : "Back to sign in"}
             </button>
           </div>
+          </>
+          )}
         </section>
 
         {/* Footer */}
