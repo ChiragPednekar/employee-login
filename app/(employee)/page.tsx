@@ -4,9 +4,16 @@ import { useCallback, useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { useMe, istToday, getPosition, geoErrorMessage, nudgePushProcessor } from "@/lib/hooks";
 import { elapsedSince, fmtMinutes, fmtTime } from "@/lib/format";
-import type { WorkSession, WorkLocation, LeaveBalance } from "@/lib/types";
+import type {
+  WorkSession,
+  WorkLocation,
+  LeaveBalance,
+  Holiday,
+  TeamStatus,
+} from "@/lib/types";
 import ConfirmDialog from "@/components/ConfirmDialog";
-import { Card, StatCard, Badge, Skeleton } from "@/components/ui";
+import Avatar from "@/components/Avatar";
+import { Card, StatCard, Badge, Skeleton, SectionTitle } from "@/components/ui";
 import {
   TimerOff,
   Timer,
@@ -34,7 +41,10 @@ export default function HomePage() {
   const [session, setSession] = useState<WorkSession | null>(null);
   const [locations, setLocations] = useState<Record<string, WorkLocation>>({});
   const [monthSessions, setMonthSessions] = useState<WorkSession[]>([]);
+  const [weekSessions, setWeekSessions] = useState<WorkSession[]>([]);
   const [balance, setBalance] = useState<LeaveBalance | null>(null);
+  const [holidays, setHolidays] = useState<Holiday[]>([]);
+  const [team, setTeam] = useState<TeamStatus[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [confirming, setConfirming] = useState<"start" | "end" | null>(null);
   const [busy, setBusy] = useState(false);
@@ -47,7 +57,18 @@ export default function HomePage() {
     const supabase = supabaseBrowser();
     const monthStart = `${istToday().slice(0, 7)}-01`;
     const year = Number(istToday().slice(0, 4));
-    const [{ data: s }, { data: locs }, { data: month }, { data: bal }] = await Promise.all([
+    const weekAgo = new Date(Date.now() - 6 * 86400000).toLocaleDateString("en-CA", {
+      timeZone: "Asia/Kolkata",
+    });
+    const [
+      { data: s },
+      { data: locs },
+      { data: month },
+      { data: week },
+      { data: bal },
+      { data: hols },
+      { data: teamRows },
+    ] = await Promise.all([
       supabase
         .from("work_sessions")
         .select("*")
@@ -61,16 +82,31 @@ export default function HomePage() {
         .eq("employee_id", meId)
         .gte("work_date", monthStart),
       supabase
+        .from("work_sessions")
+        .select("*")
+        .eq("employee_id", meId)
+        .gte("work_date", weekAgo),
+      supabase
         .from("leave_balances")
         .select("*")
         .eq("employee_id", meId)
         .eq("year", year)
         .maybeSingle(),
+      supabase
+        .from("holidays")
+        .select("*")
+        .gte("holiday_date", istToday())
+        .order("holiday_date")
+        .limit(3),
+      supabase.rpc("team_status"),
     ]);
     setSession(s ?? null);
     setLocations(Object.fromEntries((locs ?? []).map((l: WorkLocation) => [l.id, l])));
     setMonthSessions(month ?? []);
+    setWeekSessions(week ?? []);
     setBalance(bal);
+    setHolidays(hols ?? []);
+    setTeam((teamRows as TeamStatus[]) ?? []);
     setLoaded(true);
   }, [meId]);
 
@@ -146,6 +182,20 @@ export default function HomePage() {
   const monthMinutes = monthDone.reduce((a, s) => a + (s.total_minutes ?? 0), 0);
   const monthOT = monthDone.reduce((a, s) => a + (s.overtime_minutes ?? 0), 0);
   const leaveLeft = balance ? balance.quota - balance.used : null;
+
+  // Last 7 days worked-minutes, oldest → newest
+  const weekByDate = new Map(weekSessions.map((s) => [s.work_date, s.total_minutes ?? 0]));
+  const weekDays = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(Date.now() - (6 - i) * 86400000);
+    const key = d.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+    return {
+      key,
+      label: d.toLocaleDateString("en-US", { weekday: "narrow", timeZone: "Asia/Kolkata" }),
+      minutes: weekByDate.get(key) ?? 0,
+    };
+  });
+  const weekMinutes = weekDays.reduce((a, d) => a + d.minutes, 0);
+  const maxWeek = Math.max(60, ...weekDays.map((d) => d.minutes));
 
   const dateStr = new Date().toLocaleDateString("en-IN", {
     weekday: "long",
@@ -321,6 +371,118 @@ export default function HomePage() {
             highlight={monthOT > 0}
           />
         </section>
+      )}
+
+      {/* This week summary */}
+      {loaded && (
+        <Card className="p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <TrendingUp size={16} className="text-primary" strokeWidth={2.25} />
+              <h2 className="text-sm font-semibold text-ink">This week</h2>
+            </div>
+            <p className="text-sm font-semibold tabular-nums text-ink">
+              {fmtMinutes(weekMinutes)}
+            </p>
+          </div>
+          <div className="flex h-24 items-end gap-2">
+            {weekDays.map((d) => (
+              <div key={d.key} className="flex h-full flex-1 flex-col items-center justify-end gap-1.5">
+                <div
+                  className={`w-full max-w-9 rounded-md transition-all duration-500 ${
+                    d.minutes > 0 ? "bg-primary" : "bg-slate-200/80"
+                  }`}
+                  style={{
+                    height: `${d.minutes > 0 ? Math.max(8, Math.round((d.minutes / maxWeek) * 72)) : 4}px`,
+                  }}
+                  title={`${fmtMinutes(d.minutes)} on ${d.key}`}
+                />
+                <span className="text-[11px] font-medium text-outline">{d.label}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Upcoming holidays */}
+      {loaded && holidays.length > 0 && (
+        <div className="space-y-2">
+          <SectionTitle>Upcoming holidays</SectionTitle>
+          <Card className="overflow-hidden">
+            <div className="divide-y divide-line">
+              {holidays.map((h, i) => {
+                const d = new Date(h.holiday_date);
+                const away = Math.round(
+                  (d.getTime() - new Date(istToday()).getTime()) / 86400000
+                );
+                return (
+                  <div key={h.id} className="flex items-center justify-between px-5 py-3.5">
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-10 w-10 shrink-0 flex-col items-center justify-center rounded-lg bg-primary-tint">
+                        <span className="text-[10px] font-semibold uppercase leading-none text-primary-deep">
+                          {d.toLocaleDateString("en-US", { month: "short", timeZone: "Asia/Kolkata" })}
+                        </span>
+                        <span className="text-sm font-bold leading-tight text-primary">
+                          {d.toLocaleDateString("en-US", { day: "numeric", timeZone: "Asia/Kolkata" })}
+                        </span>
+                      </span>
+                      <div>
+                        <p className="text-sm font-semibold text-ink">{h.name}</p>
+                        <p className="text-xs text-ink-muted">
+                          {d.toLocaleDateString("en-US", {
+                            weekday: "long",
+                            timeZone: "Asia/Kolkata",
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                    {i === 0 && (
+                      <Badge tone="indigo">
+                        {away === 0 ? "today" : away === 1 ? "tomorrow" : `in ${away} days`}
+                      </Badge>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Team availability */}
+      {loaded && team.length > 0 && (
+        <div className="space-y-2">
+          <SectionTitle>Team availability</SectionTitle>
+          <Card className="overflow-hidden">
+            <div className="divide-y divide-line">
+              {team.map((t) => (
+                <div key={t.emp_id} className="flex items-center justify-between px-5 py-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <Avatar name={t.name} size={36} />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-ink">{t.name}</p>
+                      <p className="text-xs text-outline">{t.emp_id}</p>
+                    </div>
+                  </div>
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-ink-muted">
+                    <span
+                      className={`h-2 w-2 rounded-full ${
+                        t.status === "working"
+                          ? "bg-success"
+                          : t.status === "on leave"
+                            ? "bg-amber-500"
+                            : t.status === "done today"
+                              ? "bg-primary"
+                              : "bg-slate-300"
+                      }`}
+                    />
+                    {t.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
       )}
 
       <ConfirmDialog

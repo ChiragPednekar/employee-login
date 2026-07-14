@@ -60,3 +60,15 @@ export type LeaveBalance = {
   quota: number;
   used: number;
 };
+
+export type Holiday = {
+  id: string;
+  holiday_date: string;
+  name: string;
+};
+
+export type TeamStatus = {
+  name: string;
+  emp_id: string;
+  status: "working" | "on leave" | "done today" | "off";
+};

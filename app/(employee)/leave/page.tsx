@@ -4,8 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { useMe, istToday, nudgePushProcessor } from "@/lib/hooks";
 import { fmtDate } from "@/lib/format";
-import type { LeaveRequest, LeaveBalance } from "@/lib/types";
-import { Card, Badge, FieldLabel, inputCls, EmptyState } from "@/components/ui";
+import type { LeaveRequest, LeaveBalance, Holiday } from "@/lib/types";
+import { Card, Badge, FieldLabel, EmptyState } from "@/components/ui";
+import DateRangePicker from "@/components/DateRangePicker";
 import { Plane, Plus, X } from "lucide-react";
 
 const DAY_PART_LABEL = {
@@ -18,6 +19,7 @@ export default function LeavePage() {
   const { me } = useMe();
   const [balance, setBalance] = useState<LeaveBalance | null>(null);
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
+  const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [start, setStart] = useState(istToday());
   const [end, setEnd] = useState(istToday());
@@ -31,7 +33,7 @@ export default function LeavePage() {
     if (!meId) return;
     const supabase = supabaseBrowser();
     const year = Number(istToday().slice(0, 4));
-    const [{ data: bal }, { data: reqs }] = await Promise.all([
+    const [{ data: bal }, { data: reqs }, { data: hols }] = await Promise.all([
       supabase
         .from("leave_balances")
         .select("*")
@@ -44,9 +46,15 @@ export default function LeavePage() {
         .eq("employee_id", meId)
         .order("created_at", { ascending: false })
         .limit(30),
+      supabase
+        .from("holidays")
+        .select("*")
+        .gte("holiday_date", `${year}-01-01`)
+        .order("holiday_date"),
     ]);
     setBalance(bal);
     setRequests(reqs ?? []);
+    setHolidays(hols ?? []);
   }, [meId]);
 
   useEffect(() => {
@@ -77,6 +85,10 @@ export default function LeavePage() {
 
   const remaining = balance ? balance.quota - balance.used : null;
   const pct = balance && balance.quota > 0 ? (remaining! / balance.quota) : 0;
+  const calendarDays =
+    Math.floor(
+      (new Date(end).getTime() - new Date(start).getTime()) / 86400000
+    ) + 1;
 
   return (
     <main className="space-y-6 p-4 md:p-6">
@@ -137,33 +149,39 @@ export default function LeavePage() {
                 ))}
               </div>
             </div>
-            <div className="flex gap-4">
-              <div className="flex-1 space-y-1.5">
-                <FieldLabel htmlFor="start">{dayPart === "full" ? "From" : "Date"}</FieldLabel>
-                <input
-                  id="start"
-                  type="date"
-                  required
-                  value={start}
-                  min={istToday()}
-                  onChange={(e) => setStart(e.target.value)}
-                  className={inputCls}
-                />
-              </div>
-              {dayPart === "full" && (
-                <div className="flex-1 space-y-1.5">
-                  <FieldLabel htmlFor="end">To</FieldLabel>
-                  <input
-                    id="end"
-                    type="date"
-                    required
-                    value={end}
-                    min={start}
-                    onChange={(e) => setEnd(e.target.value)}
-                    className={inputCls}
-                  />
-                </div>
-              )}
+            <div className="space-y-1.5">
+              <FieldLabel>
+                {dayPart === "full" ? "Pick your dates" : "Pick a date"}
+              </FieldLabel>
+              <DateRangePicker
+                start={start}
+                end={dayPart === "full" ? end : start}
+                mode={dayPart === "full" ? "range" : "single"}
+                holidays={holidays}
+                minDate={istToday()}
+                onChange={(s, e) => {
+                  setStart(s);
+                  setEnd(e);
+                }}
+              />
+              <p className="pt-1 text-sm text-ink-muted">
+                {dayPart === "full" ? (
+                  <>
+                    <span className="font-semibold text-ink">{fmtDate(start)}</span>
+                    {end !== start && (
+                      <>
+                        {" → "}
+                        <span className="font-semibold text-ink">{fmtDate(end)}</span>
+                      </>
+                    )}{" "}
+                    · {calendarDays} day{calendarDays !== 1 ? "s" : ""}
+                  </>
+                ) : (
+                  <>
+                    <span className="font-semibold text-ink">{fmtDate(start)}</span> · 0.5 day
+                  </>
+                )}
+              </p>
             </div>
             <div className="space-y-1.5">
               <FieldLabel htmlFor="reason">Reason</FieldLabel>

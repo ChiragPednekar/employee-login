@@ -9,6 +9,7 @@ import {
   CalendarClock,
   Users,
   Building2,
+  CalendarDays,
   Timer,
 } from "lucide-react";
 import type { LucideProps } from "lucide-react";
@@ -28,6 +29,7 @@ const tabs: Tab[] = [
   { href: "/admin/attendance", label: "Attendance", icon: CalendarClock },
   { href: "/admin/employees", label: "Employees", icon: Users, adminOnly: true },
   { href: "/admin/locations", label: "Locations", icon: Building2, adminOnly: true },
+  { href: "/admin/holidays", label: "Holidays", icon: CalendarDays, adminOnly: true },
 ];
 
 export default function AdminNav({ role }: { role: string }) {
