@@ -4,11 +4,32 @@ export type Employee = {
   name: string;
   email: string;
   contact: string | null;
-  role: "employee" | "manager" | "admin";
+  role: "employee" | "manager" | "admin" | "audit";
   department: string | null;
   manager_id: string | null;
+  office_id: string | null;
   auth_user_id: string | null;
   active: boolean;
+};
+
+export type LeaveStatus = {
+  current_month: string;
+  current_days: number;
+  carried_days: number;
+  total_available: number;
+  expiring_days: number;
+  expiring_on: string;
+};
+
+export type LeaveLedgerEntry = {
+  id: string;
+  employee_id: string;
+  alloc_month: string;
+  kind: "allocation" | "consumption" | "expiry" | "adjustment";
+  days: number;
+  leave_request_id: string | null;
+  note: string | null;
+  created_at: string;
 };
 
 export type WorkLocation = {
@@ -50,7 +71,9 @@ export type LeaveRequest = {
   day_part: "full" | "first_half" | "second_half";
   days: number;
   reason: string;
-  status: "pending" | "approved" | "denied";
+  status: "pending" | "approved" | "denied" | "cancelled";
+  paid_days?: number;
+  unpaid_days?: number;
   created_at: string;
 };
 

@@ -25,6 +25,7 @@ export default async function EmployeeLayout({
 
   if (!emp) redirect("/login");
   if (emp.role === "admin") redirect("/admin");
+  if (emp.role === "audit") redirect("/audit");
 
   return (
     <div className="mx-auto min-h-dvh w-full max-w-2xl pb-20">

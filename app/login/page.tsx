@@ -28,7 +28,8 @@ export default function LoginPage() {
       .select("role")
       .limit(1)
       .maybeSingle();
-    router.replace(data?.role === "admin" ? "/admin" : "/");
+    const role = data?.role;
+    router.replace(role === "admin" ? "/admin" : role === "audit" ? "/audit" : "/");
     router.refresh();
   }
 

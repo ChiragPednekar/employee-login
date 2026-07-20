@@ -9,7 +9,7 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import { Badge, Card, EmptyState, FieldLabel, inputCls } from "@/components/ui";
 import { Search, UserPlus, X, Users, KeyRound } from "lucide-react";
 
-const ROLE_TONE = { admin: "indigo", manager: "emerald", employee: "slate" } as const;
+const ROLE_TONE = { admin: "indigo", manager: "emerald", audit: "amber", employee: "slate" } as const;
 
 const emptyForm = {
   emp_id: "",
@@ -273,6 +273,7 @@ export default function EmployeesPage() {
                 >
                   <option value="employee">Employee</option>
                   <option value="manager">Manager</option>
+                  <option value="audit">Audit</option>
                   <option value="admin">Admin</option>
                 </select>
               </div>

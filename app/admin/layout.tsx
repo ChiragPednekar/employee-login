@@ -23,6 +23,7 @@ export default async function AdminLayout({
     .maybeSingle();
 
   if (!emp) redirect("/login");
+  if (emp.role === "audit") redirect("/audit");
   if (emp.role !== "admin" && emp.role !== "manager") redirect("/");
 
   return (
