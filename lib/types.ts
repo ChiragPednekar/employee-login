@@ -35,6 +35,7 @@ export type LeaveLedgerEntry = {
 export type WorkLocation = {
   id: string;
   name: string;
+  address: string | null;
   lat: number;
   lng: number;
   radius_m: number;

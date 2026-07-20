@@ -2,7 +2,16 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { useMe, istToday, getPosition, geoErrorMessage, nudgePushProcessor } from "@/lib/hooks";
+import {
+  useMe,
+  istToday,
+  getPosition,
+  attendanceErrorMessage,
+  geoErrorMessage,
+  distanceM,
+  ACCURACY_LIMIT_M,
+  nudgePushProcessor,
+} from "@/lib/hooks";
 import { elapsedSince, fmtMinutes, fmtTime } from "@/lib/format";
 import type {
   WorkSession,
@@ -50,7 +59,15 @@ export default function HomePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
+  const [office, setOffice] = useState<WorkLocation | null>(null);
+  const [geoStatus, setGeoStatus] = useState<
+    | { checking: true }
+    | { checking: false; distance: number; inside: boolean; accuracy: number }
+    | { checking: false; error: string }
+    | null
+  >(null);
   const meId = me?.id;
+  const officeId = me?.office_id;
 
   const refresh = useCallback(async () => {
     if (!meId) return;
@@ -114,6 +131,40 @@ export default function HomePage() {
     refresh();
   }, [refresh]);
 
+  // Load the employee's assigned office (for the geofence status widget)
+  useEffect(() => {
+    if (!officeId) {
+      setOffice(null);
+      return;
+    }
+    supabaseBrowser()
+      .from("locations")
+      .select("*")
+      .eq("id", officeId)
+      .maybeSingle()
+      .then(({ data }) => setOffice(data));
+  }, [officeId]);
+
+  async function checkLocation() {
+    setGeoStatus({ checking: true });
+    try {
+      const pos = await getPosition();
+      if (!office) {
+        setGeoStatus({ checking: false, error: "No office assigned" });
+        return;
+      }
+      const d = distanceM(pos.coords.latitude, pos.coords.longitude, office.lat, office.lng);
+      setGeoStatus({
+        checking: false,
+        distance: Math.round(d),
+        inside: d <= office.radius_m,
+        accuracy: Math.round(pos.coords.accuracy),
+      });
+    } catch (e) {
+      setGeoStatus({ checking: false, error: geoErrorMessage(e) });
+    }
+  }
+
   const status = session?.status;
   useEffect(() => {
     const timer = setInterval(() => setTick((t) => t + 1), 1000);
@@ -132,15 +183,27 @@ export default function HomePage() {
     setError(null);
     try {
       const pos = await getPosition();
+      if (pos.coords.accuracy > ACCURACY_LIMIT_M) {
+        throw new Error(
+          `Location accuracy is too low (±${Math.round(pos.coords.accuracy)} m) to verify your office reliably. Move to an open area and try again.`
+        );
+      }
       const { data, error } = await supabaseBrowser().rpc("start_session", {
         p_lat: pos.coords.latitude,
         p_lng: pos.coords.longitude,
       });
       if (error) throw new Error(error.message);
+      if (data && (data as { blocked?: boolean }).blocked) {
+        const b = data as { distance_m: number; radius_m: number };
+        setError(
+          `You are outside the permitted office location. You must be within ${b.radius_m} meters of your assigned office to mark attendance. (You appear to be about ${b.distance_m} m away.)`
+        );
+        return;
+      }
       setSession(data as WorkSession);
       nudgePushProcessor();
     } catch (e) {
-      setError(geoErrorMessage(e));
+      setError(attendanceErrorMessage(e));
     } finally {
       setBusy(false);
       setConfirming(null);
@@ -152,15 +215,27 @@ export default function HomePage() {
     setError(null);
     try {
       const pos = await getPosition();
+      if (pos.coords.accuracy > ACCURACY_LIMIT_M) {
+        throw new Error(
+          `Location accuracy is too low (±${Math.round(pos.coords.accuracy)} m) to verify your office reliably. Move to an open area and try again.`
+        );
+      }
       const { data, error } = await supabaseBrowser().rpc("end_session", {
         p_lat: pos.coords.latitude,
         p_lng: pos.coords.longitude,
       });
       if (error) throw new Error(error.message);
+      if (data && (data as { blocked?: boolean }).blocked) {
+        const b = data as { distance_m: number; radius_m: number };
+        setError(
+          `You are outside the permitted office location. You must be within ${b.radius_m} meters of your assigned office to clock out. (You appear to be about ${b.distance_m} m away.)`
+        );
+        return;
+      }
       setSession(data as WorkSession);
       nudgePushProcessor();
     } catch (e) {
-      setError(geoErrorMessage(e));
+      setError(attendanceErrorMessage(e));
     } finally {
       setBusy(false);
       setConfirming(null);
@@ -331,6 +406,49 @@ export default function HomePage() {
 
       {error && (
         <p className="rounded-lg bg-danger-tint px-4 py-3 text-sm text-danger-deep">{error}</p>
+      )}
+
+      {/* Geofence status (assigned-office employees) */}
+      {office && (
+        <Card className="p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="flex items-center gap-1.5 text-sm font-semibold text-ink">
+                <MapPin size={15} className="text-primary" />
+                {office.name}
+              </p>
+              <p className="mt-0.5 text-xs text-ink-muted">
+                Allowed radius: {office.radius_m} m · you must be inside to mark attendance
+              </p>
+            </div>
+            <button
+              onClick={checkLocation}
+              disabled={geoStatus?.checking}
+              className="h-9 shrink-0 rounded-lg border border-line-strong bg-white px-3 text-sm font-semibold text-ink transition-colors hover:bg-surface-low disabled:opacity-50"
+            >
+              {geoStatus?.checking ? "Checking…" : "Check location"}
+            </button>
+          </div>
+          {geoStatus && !geoStatus.checking && "distance" in geoStatus && (
+            <div
+              className={`mt-3 flex items-center justify-between rounded-lg px-3 py-2 text-sm ${
+                geoStatus.inside ? "bg-success-tint text-success-deep" : "bg-danger-tint text-danger-deep"
+              }`}
+            >
+              <span className="font-semibold">
+                {geoStatus.inside ? "✓ Inside geofence" : "✕ Outside geofence"}
+              </span>
+              <span className="tabular-nums">
+                {geoStatus.distance} m away · ±{geoStatus.accuracy} m
+              </span>
+            </div>
+          )}
+          {geoStatus && !geoStatus.checking && "error" in geoStatus && (
+            <p className="mt-3 rounded-lg bg-danger-tint px-3 py-2 text-sm text-danger-deep">
+              {geoStatus.error}
+            </p>
+          )}
+        </Card>
       )}
 
       {/* Bento stats */}

@@ -8,7 +8,7 @@ import MapPicker from "@/components/MapPicker";
 import { Card, FieldLabel, inputCls, EmptyState } from "@/components/ui";
 import { Building2, LocateFixed, Plus, X, MapPin } from "lucide-react";
 
-const emptyForm = { id: "", name: "", lat: "", lng: "", radius_m: "200" };
+const emptyForm = { id: "", name: "", address: "", lat: "", lng: "", radius_m: "200" };
 // Default map view when adding a fresh location (Mumbai)
 const DEFAULT_CENTER = { lat: 19.076, lng: 72.8777 };
 
@@ -65,6 +65,7 @@ export default function LocationsPage() {
     setError(null);
     const payload = {
       name: form.name.trim(),
+      address: form.address.trim() || null,
       lat: Number(form.lat),
       lng: Number(form.lng),
       radius_m: Math.round(Number(form.radius_m)),
@@ -122,6 +123,16 @@ export default function LocationsPage() {
                 className={inputCls}
               />
               {formErrors.name && <p className="text-xs text-danger">{formErrors.name}</p>}
+            </div>
+
+            <div className="space-y-1">
+              <FieldLabel>Address (optional)</FieldLabel>
+              <input
+                placeholder="Street, area, city"
+                value={form.address}
+                onChange={(e) => setForm({ ...form, address: e.target.value })}
+                className={inputCls}
+              />
             </div>
 
             <div className="space-y-1.5">
@@ -223,6 +234,7 @@ export default function LocationsPage() {
                   </span>
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-ink">{loc.name}</p>
+                    {loc.address && <p className="truncate text-xs text-ink-muted">{loc.address}</p>}
                     <a
                       href={`https://www.google.com/maps?q=${loc.lat},${loc.lng}`}
                       target="_blank"
@@ -240,6 +252,7 @@ export default function LocationsPage() {
                       setForm({
                         id: loc.id,
                         name: loc.name,
+                        address: loc.address ?? "",
                         lat: String(loc.lat),
                         lng: String(loc.lng),
                         radius_m: String(loc.radius_m),

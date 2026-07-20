@@ -19,11 +19,13 @@ const emptyForm = {
   role: "employee",
   department: "",
   manager_id: "",
+  office_id: "",
 };
 
 export default function EmployeesPage() {
   const { me } = useMe();
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [offices, setOffices] = useState<{ id: string; name: string }[]>([]);
   const [balances, setBalances] = useState<Record<string, LeaveBalance>>({});
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
@@ -45,13 +47,23 @@ export default function EmployeesPage() {
 
   const refresh = useCallback(async () => {
     const supabase = supabaseBrowser();
-    const [{ data: emps }, { data: bals }] = await Promise.all([
+    const [{ data: emps }, { data: bals }, { data: locs }] = await Promise.all([
       supabase.from("employees").select("*").order("emp_id"),
       supabase.from("leave_balances").select("*").eq("year", year),
+      supabase.from("locations").select("id, name").eq("active", true).order("name"),
     ]);
     setEmployees(emps ?? []);
     setBalances(Object.fromEntries((bals ?? []).map((b: LeaveBalance) => [b.employee_id, b])));
+    setOffices(locs ?? []);
   }, [year]);
+
+  async function assignOffice(empId: string, officeId: string) {
+    await supabaseBrowser()
+      .from("employees")
+      .update({ office_id: officeId || null })
+      .eq("id", empId);
+    refresh();
+  }
 
   useEffect(() => {
     refresh();
@@ -118,6 +130,7 @@ export default function EmployeesPage() {
         role: form.role,
         department: form.department.trim() || null,
         manager_id: form.manager_id || null,
+        office_id: form.office_id || null,
       })
       .select()
       .single();
@@ -293,6 +306,21 @@ export default function EmployeesPage() {
                 </select>
               </div>
             </div>
+            <div className="space-y-1">
+              <FieldLabel>Assigned office (for geofenced attendance)</FieldLabel>
+              <select
+                value={form.office_id}
+                onChange={(e) => setForm({ ...form, office_id: e.target.value })}
+                className={inputCls}
+              >
+                <option value="">— No office (uses approval fallback) —</option>
+                {offices.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.name}
+                  </option>
+                ))}
+              </select>
+            </div>
             {error && (
               <p className="rounded-lg bg-danger-tint px-3 py-2 text-sm text-danger-deep">{error}</p>
             )}
@@ -437,7 +465,23 @@ export default function EmployeesPage() {
                           </button>
                         </div>
                       </div>
-                      <div className="mt-2 flex items-center gap-2 pl-[52px] text-[13px]">
+                      <div className="mt-2 flex flex-wrap items-center gap-2 pl-[52px] text-[13px]">
+                        <label className="flex items-center gap-1.5 text-ink-muted">
+                          Office:
+                          <select
+                            aria-label={`Assign office for ${emp.name}`}
+                            value={emp.office_id ?? ""}
+                            onChange={(e) => assignOffice(emp.id, e.target.value)}
+                            className="h-7 rounded-lg border border-line-strong bg-white px-2 text-xs text-ink"
+                          >
+                            <option value="">None</option>
+                            {offices.map((o) => (
+                              <option key={o.id} value={o.id}>
+                                {o.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
                         <span className="text-ink-muted">
                           Leave {year}:{" "}
                           <b className="tabular-nums">

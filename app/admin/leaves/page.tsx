@@ -84,7 +84,9 @@ export default function LeavesAdminPage() {
         <p className="mt-1 text-sm text-ink-muted">
           {fmtDate(r.start_date)}
           {r.end_date !== r.start_date && ` → ${fmtDate(r.end_date)}`} ·{" "}
-          {DAY_PART_LABEL[r.day_part]} · <b>{r.days} day{r.days !== 1 ? "s" : ""}</b>
+          {DAY_PART_LABEL[r.day_part]} · <b>{r.days} working day{r.days !== 1 ? "s" : ""}</b>
+          {(r.paid_days ?? 0) > 0 && <span className="text-success"> · {r.paid_days} paid</span>}
+          {(r.unpaid_days ?? 0) > 0 && <span className="text-amber-600"> · {r.unpaid_days} unpaid</span>}
         </p>
         <p className="mt-2 rounded-lg bg-slate-50 p-2.5 text-sm text-ink-muted">“{r.reason}”</p>
         {actions && (
