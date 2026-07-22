@@ -59,13 +59,12 @@ export function geoErrorMessage(err: unknown): string {
 /** Max GPS accuracy (metres) we'll trust for a geofence decision. */
 export const ACCURACY_LIMIT_M = 150;
 
-/** Turn any check-in/out error (incl. the server GEOFENCE_BLOCK signal) into a clear message. */
+/** Turn any check-in/out error into a clear message. Out-of-range presses are no
+ *  longer errors — they return a pending session that HR decides on. */
 export function attendanceErrorMessage(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err ?? "");
-  const m = msg.match(/GEOFENCE_BLOCK\|(\d+)\|(\d+)/);
-  if (m) {
-    return `You are outside the permitted office location. You must be within ${m[2]} meters of your assigned office to mark attendance. (You appear to be about ${m[1]} m away.)`;
-  }
+  if (msg.includes("already have a"))
+    return msg;
   if (msg.includes("assigned office is inactive"))
     return "Your assigned office is currently inactive. Please contact your admin.";
   return geoErrorMessage(err);

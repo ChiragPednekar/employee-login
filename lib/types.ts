@@ -53,8 +53,15 @@ export type WorkSession = {
   id: string;
   employee_id: string;
   work_date: string;
-  started_at: string;
+  /** Null while a geofence-refused check-in waits for HR — the clock starts on approval. */
+  started_at: string | null;
   ended_at: string | null;
+  /** When the employee pressed a button that the geofence refused. */
+  requested_at: string | null;
+  /** Which action is awaiting HR permission, if any. */
+  pending_kind: "check_in" | "check_out" | null;
+  start_distance_m: number | null;
+  end_distance_m: number | null;
   start_location_id: string | null;
   end_location_id: string | null;
   end_out_of_range: boolean;

@@ -5,7 +5,10 @@ export const SHIFT_START = "09:00";
 export const LATE_GRACE_MIN = 15;
 export const LATE_LABEL = "after 9:15 AM";
 
-export function istClockInMinutes(startedAt: string): number {
+/** Minutes past IST midnight. Returns -1 when there is no time yet (a check-in
+ *  still awaiting HR permission), so such sessions never count as late. */
+export function istClockInMinutes(startedAt: string | null | undefined): number {
+  if (!startedAt) return -1;
   const t = new Date(startedAt).toLocaleTimeString("en-GB", {
     timeZone: "Asia/Kolkata",
     hour: "2-digit",

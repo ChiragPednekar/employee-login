@@ -193,13 +193,6 @@ export default function HomePage() {
         p_lng: pos.coords.longitude,
       });
       if (error) throw new Error(error.message);
-      if (data && (data as { blocked?: boolean }).blocked) {
-        const b = data as { distance_m: number; radius_m: number };
-        setError(
-          `You are outside the permitted office location. You must be within ${b.radius_m} meters of your assigned office to mark attendance. (You appear to be about ${b.distance_m} m away.)`
-        );
-        return;
-      }
       setSession(data as WorkSession);
       nudgePushProcessor();
     } catch (e) {
@@ -225,13 +218,6 @@ export default function HomePage() {
         p_lng: pos.coords.longitude,
       });
       if (error) throw new Error(error.message);
-      if (data && (data as { blocked?: boolean }).blocked) {
-        const b = data as { distance_m: number; radius_m: number };
-        setError(
-          `You are outside the permitted office location. You must be within ${b.radius_m} meters of your assigned office to clock out. (You appear to be about ${b.distance_m} m away.)`
-        );
-        return;
-      }
       setSession(data as WorkSession);
       nudgePushProcessor();
     } catch (e) {
@@ -243,11 +229,12 @@ export default function HomePage() {
   }
 
   void tick;
-  const running =
-    session &&
-    !session.ended_at &&
-    (session.status === "active" || session.status === "pending_approval");
-  const elapsedMs = session ? Date.now() - new Date(session.started_at).getTime() : 0;
+  // A geofence-refused check-in has no start time yet — nothing is running until HR approves.
+  const awaitingCheckIn = session?.pending_kind === "check_in";
+  const awaitingCheckOut = session?.pending_kind === "check_out";
+  const running = Boolean(session && session.started_at && !session.ended_at);
+  const elapsedMs =
+    session?.started_at ? Date.now() - new Date(session.started_at).getTime() : 0;
   const over11h = running && elapsedMs > 11 * 3600 * 1000;
 
   const todayMinutes =
@@ -317,17 +304,38 @@ export default function HomePage() {
             </div>
           )}
 
+          {session && awaitingCheckIn && (
+            <div className="flex flex-col items-center gap-6 text-center md:flex-row md:justify-between md:text-left">
+              <div className="space-y-2">
+                <div className="inline-flex items-center gap-2 font-semibold text-amber-600">
+                  <TimerOff size={20} />
+                  <span className="text-lg">Check-in Awaiting HR Permission</span>
+                </div>
+                <p className="max-w-md text-sm text-ink-muted">
+                  You pressed Clock In at {fmtTime(session.requested_at)}
+                  {session.start_distance_m != null && office
+                    ? `, about ${Math.round(session.start_distance_m)} m from ${office.name} (limit ${office.radius_m} m).`
+                    : ", outside your office location."}
+                </p>
+                <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  Your timer has <strong>not</strong> started. HR has been notified — once they
+                  approve, the clock starts from that moment. This page updates automatically.
+                </p>
+              </div>
+            </div>
+          )}
+
           {session && running && (
             <div className="flex flex-col items-center gap-6 text-center md:flex-row md:justify-between md:text-left">
               <div className="space-y-2">
                 <div
                   className={`inline-flex items-center gap-2 font-semibold ${
-                    session.status === "active" ? "text-success" : "text-amber-600"
+                    awaitingCheckOut ? "text-amber-600" : "text-success"
                   }`}
                 >
                   <Timer size={20} />
                   <span className="text-lg">
-                    {session.status === "active" ? "Clocked In" : "Waiting for Approval"}
+                    {awaitingCheckOut ? "Check-out Awaiting HR Permission" : "Clocked In"}
                   </span>
                 </div>
                 <p className="font-mono text-[40px] font-bold leading-none tracking-tight tabular-nums text-ink">
@@ -343,10 +351,11 @@ export default function HomePage() {
                     </span>
                   ) : null}
                 </p>
-                {session.status === "pending_approval" && (
+                {awaitingCheckOut && (
                   <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                    You&apos;re not at an approved location — the admin has been notified. Your
-                    time counts from when you pressed Clock In.
+                    You pressed Clock Out at {fmtTime(session.requested_at)} away from the office,
+                    so it was refused. You are <strong>still clocked in</strong> and the timer is
+                    running. HR has been notified — your hours are saved when they approve.
                   </p>
                 )}
                 {over11h && (
@@ -355,17 +364,19 @@ export default function HomePage() {
                   </p>
                 )}
               </div>
-              <button
-                onClick={() => setConfirming("end")}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-ink px-10 py-4 text-lg font-bold text-white transition-all hover:bg-ink/90 active:scale-95 md:w-auto"
-              >
-                <Square size={18} fill="currentColor" />
-                Clock Out
-              </button>
+              {!awaitingCheckOut && (
+                <button
+                  onClick={() => setConfirming("end")}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-ink px-10 py-4 text-lg font-bold text-white transition-all hover:bg-ink/90 active:scale-95 md:w-auto"
+                >
+                  <Square size={18} fill="currentColor" />
+                  Clock Out
+                </button>
+              )}
             </div>
           )}
 
-          {session && !running && (
+          {session && !running && !awaitingCheckIn && (
             <div className="flex flex-col items-center gap-2 text-center">
               {session.status !== "denied" ? (
                 <>
@@ -418,7 +429,8 @@ export default function HomePage() {
                 {office.name}
               </p>
               <p className="mt-0.5 text-xs text-ink-muted">
-                Allowed radius: {office.radius_m} m · you must be inside to mark attendance
+                Allowed radius: {office.radius_m} m · outside this, check-in and check-out need
+                HR permission
               </p>
             </div>
             <button
@@ -606,7 +618,7 @@ export default function HomePage() {
       <ConfirmDialog
         open={confirming === "start"}
         title="Clock in now?"
-        message="We'll verify your current location against the approved work locations and start your timer."
+        message="We'll check your location against your office. If you're outside the allowed radius, your check-in is refused and sent to HR for permission — the timer starts only once they approve."
         confirmLabel="Yes, clock in"
         busy={busy}
         onConfirm={doStart}
@@ -615,7 +627,7 @@ export default function HomePage() {
       <ConfirmDialog
         open={confirming === "end"}
         title="Clock out?"
-        message="This ends today's work session and saves your working hours. You can't start another session today."
+        message="This ends today's work session and saves your working hours. If you're outside your office radius, it's refused and sent to HR — you stay clocked in until they approve. You can't start another session today."
         confirmLabel="Clock out"
         danger
         busy={busy}

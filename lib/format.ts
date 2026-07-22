@@ -32,7 +32,8 @@ export function fmtDate(d: string | Date): string {
   });
 }
 
-export function elapsedSince(startIso: string): string {
+export function elapsedSince(startIso: string | null | undefined): string {
+  if (!startIso) return "00:00:00";
   const secs = Math.max(0, Math.floor((Date.now() - new Date(startIso).getTime()) / 1000));
   const h = Math.floor(secs / 3600);
   const m = Math.floor((secs % 3600) / 60);

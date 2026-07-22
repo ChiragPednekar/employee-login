@@ -6,10 +6,14 @@ Attendance + leave management for field employees. Employees mark attendance fro
 
 **Employee** (`/`)
 - Logs in with email + password. First login: they set their own password ("First time here?" on the login page).
-- **Start** button → confirmation → GPS check against approved locations (default 200 m radius).
+- **Clock In** → confirmation → GPS check against the employee's assigned office (200 m radius).
   - In range → session starts immediately.
-  - Out of range → session starts as *pending* and admins get a push notification to approve/deny. Time counts from the button press.
-- **Work Done** → GPS checked again (out-of-range checkouts are flagged for admin), hours + overtime saved.
+  - Out of range → **refused**. The press (time + coordinates) is recorded and sent to HR
+    for permission; the timer does *not* run. On approval the clock starts from the
+    approval moment. On denial no hours are credited.
+- **Clock Out** → GPS checked again. Out of range → refused the same way; the employee
+  stays clocked in until HR approves, then hours + overtime are saved.
+- Employees with no assigned office fall back to matching any active approved location.
 - One session per day. Warning at 11 h, auto-cutoff at 12 h (server cron, runs every minute).
 - Overtime = anything beyond 9 h/day.
 - Leave tab: apply with date range / half-day + free-text reason; yearly balance tracked; admin approves/denies with push both ways.
@@ -23,14 +27,19 @@ Attendance + leave management for field employees. Employees mark attendance fro
 
 ## Test accounts (temp seed data)
 
-| Who | Email | Password |
+| Who | Email | Role |
 |---|---|---|
-| Admin | chiragpednekar3@gmail.com | admin123 |
-| Employee | rahul@test.com | password123 |
-| Employee | priya@test.com | priya1234 |
-| Employee (not yet activated) | amit@test.com | — use "First time here?" |
+| Admin | chiragpednekar3@gmail.com | admin |
+| Employee | rahul@test.com | employee |
+| Manager | priya@test.com | manager |
+| Audit | amit@test.com | audit |
 
-⚠️ Change the admin password before going live.
+Passwords are deliberately **not** recorded here — this repo is public. Set or reset
+them from `/admin/security`, or via "First time here?" on the login page.
+
+> ⚠️ Earlier revisions of this file did contain the seed passwords, so they remain
+> readable in git history. Treat every seed password as compromised and rotate it
+> before this goes anywhere real.
 
 ## Stack
 
