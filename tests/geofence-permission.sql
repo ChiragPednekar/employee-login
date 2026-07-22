@@ -183,3 +183,87 @@ end $$;
 -- Remove the notifications and audit rows the harness generated.
 delete from notification_queue where created_at > now() - interval '5 minutes';
 delete from audit_logs        where created_at > now() - interval '5 minutes';
+
+-- ============================================================================
+-- Sandwich-leave CHARGING tests (S1-S9)
+-- The rule detected the Sunday but never charged it; these lock in the fix.
+--   S1 Sat->Mon single range counts the Sunday (days 2 -> 3)
+--   S2 the Sunday is charged as UNPAID
+--   S3 sandwich_unpaid_days() reports it
+--   S4 cancelling reverses the charge
+--   S5 Saturday alone does not trigger it
+--   S6 SEPARATE Sat and Mon requests do trigger it
+--   S7 the charge lands on the Saturday request
+--   S8 the Sunday never consumes PAID balance
+--   S9 cancelling Monday reverses the charge on the Saturday request
+-- ============================================================================
+do $$
+declare t uuid; rid uuid; sat_id uuid; mon_id uuid;
+  d numeric; p numeric; u numeric; sw numeric; bal numeric;
+  d_sat date := '2026-08-08'; d_sun date := '2026-08-09'; d_mon date := '2026-08-10';
+begin
+  if extract(dow from d_sat)<>6 or extract(dow from d_sun)<>0 or extract(dow from d_mon)<>1 then
+    raise exception 'SETUP FAIL: date assumptions wrong'; end if;
+
+  delete from employees where emp_id='TST996';
+  insert into employees(emp_id,name,email,role,active)
+  values ('TST996','Sandwich Bot','swbot@example.com','employee',true) returning id into t;
+
+  -- S1..S4  single Sat->Mon range
+  insert into leave_requests(employee_id,start_date,end_date,day_part,days,reason,status,paid_days,unpaid_days)
+  values (t,d_sat,d_mon,'full',working_days(d_sat,d_mon),'sandwich','approved',0,2) returning id into rid;
+  perform recompute_sandwich(t,d_sat,d_mon);
+  perform sync_sandwich_on_requests(t);
+
+  select days, unpaid_days into d,u from leave_requests where id=rid;
+  if d <> 3 then raise exception 'S1 FAIL: Sat->Mon should cost 3 days, got %', d; end if;
+  if u < 1 then raise exception 'S2 FAIL: Sunday not charged as unpaid (unpaid=%)', u; end if;
+  if sandwich_unpaid_days(t) <> 1 then raise exception 'S3 FAIL: charge not reported'; end if;
+
+  update leave_requests set status='cancelled' where id=rid;
+  perform recompute_sandwich(t,d_sat,d_mon);
+  perform sync_sandwich_on_requests(t);
+  if sandwich_unpaid_days(t) <> 0 then raise exception 'S4 FAIL: charge not reversed on cancel'; end if;
+
+  delete from leave_requests where employee_id=t;
+  delete from leave_ledger where employee_id=t;
+
+  -- S5..S9  SEPARATE Saturday and Monday requests
+  perform ensure_leave_allocations(t);   -- 2 paid days
+  insert into leave_requests(employee_id,start_date,end_date,day_part,days,reason,status,paid_days,unpaid_days)
+  values (t,d_sat,d_sat,'full',1,'sat only','approved',1,0) returning id into sat_id;
+  insert into leave_ledger(employee_id,alloc_month,kind,days,leave_request_id,note)
+  values (t, date_trunc('month',(now() at time zone 'Asia/Kolkata'))::date,'consumption',-1,sat_id,'sat');
+  perform recompute_sandwich(t,d_sat,d_sat);
+  perform sync_sandwich_on_requests(t);
+  if sandwich_unpaid_days(t) <> 0 then raise exception 'S5 FAIL: Saturday alone triggered a charge'; end if;
+
+  insert into leave_requests(employee_id,start_date,end_date,day_part,days,reason,status,paid_days,unpaid_days)
+  values (t,d_mon,d_mon,'full',1,'mon only','approved',1,0) returning id into mon_id;
+  insert into leave_ledger(employee_id,alloc_month,kind,days,leave_request_id,note)
+  values (t, date_trunc('month',(now() at time zone 'Asia/Kolkata'))::date,'consumption',-1,mon_id,'mon');
+  perform recompute_sandwich(t,d_mon,d_mon);
+  perform sync_sandwich_on_requests(t);
+
+  if sandwich_unpaid_days(t) <> 1 then raise exception 'S6 FAIL: separate Sat+Mon did not trigger the charge'; end if;
+
+  select days, unpaid_days into d,u from leave_requests where id=sat_id;
+  if d <> 2 or u <> 1 then raise exception 'S7 FAIL: charge not on the Saturday request (days=% unpaid=%)', d,u; end if;
+
+  select coalesce(sum(days),0) into bal from leave_ledger where employee_id=t;
+  if bal <> 0 then raise exception 'S8 FAIL: Sunday consumed paid balance (balance=%)', bal; end if;
+
+  update leave_requests set status='cancelled' where id=mon_id;
+  perform recompute_sandwich(t,d_mon,d_mon);
+  perform sync_sandwich_on_requests(t);
+  select days into d from leave_requests where id=sat_id;
+  if sandwich_unpaid_days(t) <> 0 or d <> 1 then
+    raise exception 'S9 FAIL: cancelling Monday did not reverse the charge (days=%)', d; end if;
+
+  delete from sandwich_leaves where employee_id=t;
+  delete from leave_requests where employee_id=t;
+  delete from leave_ledger where employee_id=t;
+  delete from audit_logs where employee_id=t;
+  delete from employees where id=t;
+  raise notice 'S1-S9 PASS — sandwich Sunday is charged as unpaid';
+end $$;

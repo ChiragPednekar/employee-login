@@ -21,6 +21,7 @@ import type {
   TeamStatus,
 } from "@/lib/types";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import GeofenceAlert from "@/components/GeofenceAlert";
 import Avatar from "@/components/Avatar";
 import { Card, StatCard, Badge, Skeleton, SectionTitle } from "@/components/ui";
 import {
@@ -56,6 +57,10 @@ export default function HomePage() {
   const [team, setTeam] = useState<TeamStatus[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [confirming, setConfirming] = useState<"start" | "end" | null>(null);
+  const [blocked, setBlocked] = useState<{
+    kind: "check_in" | "check_out";
+    distance: number | null;
+  } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
@@ -193,7 +198,12 @@ export default function HomePage() {
         p_lng: pos.coords.longitude,
       });
       if (error) throw new Error(error.message);
-      setSession(data as WorkSession);
+      const s = data as WorkSession;
+      setSession(s);
+      // Refused by the geofence — attendance was NOT marked. Tell them plainly.
+      if (s?.pending_kind === "check_in") {
+        setBlocked({ kind: "check_in", distance: s.start_distance_m });
+      }
       nudgePushProcessor();
     } catch (e) {
       setError(attendanceErrorMessage(e));
@@ -218,7 +228,11 @@ export default function HomePage() {
         p_lng: pos.coords.longitude,
       });
       if (error) throw new Error(error.message);
-      setSession(data as WorkSession);
+      const s = data as WorkSession;
+      setSession(s);
+      if (s?.pending_kind === "check_out") {
+        setBlocked({ kind: "check_out", distance: s.end_distance_m });
+      }
       nudgePushProcessor();
     } catch (e) {
       setError(attendanceErrorMessage(e));
@@ -614,6 +628,15 @@ export default function HomePage() {
           </Card>
         </div>
       )}
+
+      <GeofenceAlert
+        open={blocked !== null}
+        kind={blocked?.kind ?? "check_in"}
+        distanceM={blocked?.distance ?? null}
+        radiusM={office?.radius_m ?? null}
+        officeName={office?.name}
+        onClose={() => setBlocked(null)}
+      />
 
       <ConfirmDialog
         open={confirming === "start"}
