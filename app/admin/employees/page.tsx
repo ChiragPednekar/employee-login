@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { istToday, useMe } from "@/lib/hooks";
-import type { Employee, LeaveBalance } from "@/lib/types";
+import type { Employee, LeaveBalanceRow } from "@/lib/types";
 import Avatar from "@/components/Avatar";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { Badge, Card, EmptyState, FieldLabel, inputCls } from "@/components/ui";
-import { Search, UserPlus, X, Users, KeyRound } from "lucide-react";
+import { Search, UserPlus, X, Users, KeyRound, MapPin, Check } from "lucide-react";
 
 const ROLE_TONE = { admin: "indigo", manager: "emerald", audit: "amber", employee: "slate" } as const;
 
@@ -26,11 +26,16 @@ export default function EmployeesPage() {
   const { me } = useMe();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [offices, setOffices] = useState<{ id: string; name: string }[]>([]);
-  const [balances, setBalances] = useState<Record<string, LeaveBalance>>({});
+  const [balances, setBalances] = useState<Record<string, LeaveBalanceRow>>({});
+  /** Extra approved sites per employee, on top of their primary office. */
+  const [extraSites, setExtraSites] = useState<Record<string, string[]>>({});
+  const [sitesOpenFor, setSitesOpenFor] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-  const [quotaEdit, setQuotaEdit] = useState<{ id: string; quota: string } | null>(null);
+  const [adjustEdit, setAdjustEdit] = useState<{ id: string; days: string; note: string } | null>(
+    null
+  );
   const [resetTarget, setResetTarget] = useState<Employee | null>(null);
   const [resetBusy, setResetBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -47,21 +52,48 @@ export default function EmployeesPage() {
 
   const refresh = useCallback(async () => {
     const supabase = supabaseBrowser();
-    const [{ data: emps }, { data: bals }, { data: locs }] = await Promise.all([
+    // Balances come live from the leave ledger — the old leave_balances table
+    // was frozen at whatever it held when the ledger replaced it.
+    const [{ data: emps }, { data: bals }, { data: locs }, { data: links }] = await Promise.all([
       supabase.from("employees").select("*").order("emp_id"),
-      supabase.from("leave_balances").select("*").eq("year", year),
+      supabase.rpc("leave_balances_all"),
       supabase.from("locations").select("id, name").eq("active", true).order("name"),
+      supabase.from("employee_locations").select("employee_id, location_id"),
     ]);
     setEmployees(emps ?? []);
-    setBalances(Object.fromEntries((bals ?? []).map((b: LeaveBalance) => [b.employee_id, b])));
+    setBalances(
+      Object.fromEntries(((bals ?? []) as LeaveBalanceRow[]).map((b) => [b.employee_id, b]))
+    );
     setOffices(locs ?? []);
-  }, [year]);
+    const map: Record<string, string[]> = {};
+    for (const l of (links ?? []) as { employee_id: string; location_id: string }[]) {
+      (map[l.employee_id] ??= []).push(l.location_id);
+    }
+    setExtraSites(map);
+  }, []);
 
   async function assignOffice(empId: string, officeId: string) {
-    await supabaseBrowser()
+    setError(null);
+    const { error } = await supabaseBrowser()
       .from("employees")
       .update({ office_id: officeId || null })
       .eq("id", empId);
+    if (error) setError(error.message);
+    refresh();
+  }
+
+  /** Add or remove one extra site an employee may check in from. */
+  async function toggleSite(empId: string, locationId: string, on: boolean) {
+    setError(null);
+    const supabase = supabaseBrowser();
+    const { error } = on
+      ? await supabase.from("employee_locations").insert({ employee_id: empId, location_id: locationId })
+      : await supabase
+          .from("employee_locations")
+          .delete()
+          .eq("employee_id", empId)
+          .eq("location_id", locationId);
+    if (error) setError(error.message);
     refresh();
   }
 
@@ -120,7 +152,7 @@ export default function EmployeesPage() {
     setBusy(true);
     setError(null);
     const supabase = supabaseBrowser();
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from("employees")
       .insert({
         emp_id: form.emp_id.trim().toUpperCase(),
@@ -134,9 +166,6 @@ export default function EmployeesPage() {
       })
       .select()
       .single();
-    if (!error && data) {
-      await supabase.from("leave_balances").insert({ employee_id: data.id, year, quota: 12, used: 0 });
-    }
     setBusy(false);
     if (error) {
       setError(
@@ -152,14 +181,28 @@ export default function EmployeesPage() {
     refresh();
   }
 
-  async function saveQuota() {
-    if (!quotaEdit) return;
-    const qn = Number(quotaEdit.quota);
-    if (isNaN(qn) || qn < 0) return;
-    await supabaseBrowser()
-      .from("leave_balances")
-      .upsert({ employee_id: quotaEdit.id, year, quota: qn }, { onConflict: "employee_id,year" });
-    setQuotaEdit(null);
+  /** Credit (+) or deduct (−) paid-leave days against the ledger. */
+  async function saveAdjustment() {
+    if (!adjustEdit) return;
+    const days = Number(adjustEdit.days);
+    if (isNaN(days) || days === 0) {
+      setError("Enter a non-zero number of days (use −1 to deduct).");
+      return;
+    }
+    setError(null);
+    setNotice(null);
+    const { error } = await supabaseBrowser().rpc("adjust_leave", {
+      p_emp: adjustEdit.id,
+      p_days: days,
+      p_note: adjustEdit.note,
+    });
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    const who = employees.find((e) => e.id === adjustEdit.id)?.name ?? "Employee";
+    setNotice(`${days > 0 ? "Credited" : "Deducted"} ${Math.abs(days)} day(s) for ${who}.`);
+    setAdjustEdit(null);
     refresh();
   }
 
@@ -465,11 +508,11 @@ export default function EmployeesPage() {
                           </button>
                         </div>
                       </div>
-                      <div className="mt-2 flex flex-wrap items-center gap-2 pl-[52px] text-[13px]">
+                      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 pl-[52px] text-[13px]">
                         <label className="flex items-center gap-1.5 text-ink-muted">
-                          Office:
+                          Primary office:
                           <select
-                            aria-label={`Assign office for ${emp.name}`}
+                            aria-label={`Assign primary office for ${emp.name}`}
                             value={emp.office_id ?? ""}
                             onChange={(e) => assignOffice(emp.id, e.target.value)}
                             className="h-7 rounded-lg border border-line-strong bg-white px-2 text-xs text-ink"
@@ -482,28 +525,64 @@ export default function EmployeesPage() {
                             ))}
                           </select>
                         </label>
+
+                        <button
+                          onClick={() => setSitesOpenFor(sitesOpenFor === emp.id ? null : emp.id)}
+                          aria-expanded={sitesOpenFor === emp.id}
+                          className="flex h-7 items-center gap-1 rounded-lg border border-line-strong bg-white px-2 text-xs font-semibold text-primary transition-colors hover:bg-surface-low"
+                        >
+                          <MapPin size={12} />
+                          {(extraSites[emp.id]?.length ?? 0) > 0
+                            ? `+${extraSites[emp.id].length} more site${
+                                extraSites[emp.id].length !== 1 ? "s" : ""
+                              }`
+                            : "Add other sites"}
+                        </button>
+
                         <span className="text-ink-muted">
-                          Leave {year}:{" "}
-                          <b className="tabular-nums">
-                            {bal ? `${bal.quota - bal.used} / ${bal.quota}` : "—"}
+                          Paid leave:{" "}
+                          <b className="tabular-nums text-ink">
+                            {bal ? bal.total_available : "—"}
                           </b>{" "}
-                          left
+                          available
+                          {bal && bal.pending_days > 0 && (
+                            <span className="text-amber-600"> · {bal.pending_days} pending</span>
+                          )}
+                          {bal && bal.taken_this_year > 0 && (
+                            <span className="text-outline"> · {bal.taken_this_year} taken in {year}</span>
+                          )}
                         </span>
-                        {quotaEdit?.id === emp.id ? (
-                          <span className="flex items-center gap-1.5">
+
+                        {adjustEdit?.id === emp.id ? (
+                          <span className="flex flex-wrap items-center gap-1.5">
                             <input
                               type="number"
                               step="0.5"
-                              min="0"
-                              value={quotaEdit.quota}
-                              onChange={(e) => setQuotaEdit({ id: emp.id, quota: e.target.value })}
+                              aria-label="Days to credit or deduct"
+                              placeholder="+1 / −1"
+                              value={adjustEdit.days}
+                              onChange={(e) =>
+                                setAdjustEdit({ ...adjustEdit, days: e.target.value })
+                              }
                               className="h-7 w-20 rounded-lg border border-line-strong px-2 text-sm"
                             />
-                            <button onClick={saveQuota} className="text-xs font-bold text-success">
-                              Save
+                            <input
+                              aria-label="Reason for the adjustment"
+                              placeholder="Reason"
+                              value={adjustEdit.note}
+                              onChange={(e) =>
+                                setAdjustEdit({ ...adjustEdit, note: e.target.value })
+                              }
+                              className="h-7 w-40 rounded-lg border border-line-strong px-2 text-sm"
+                            />
+                            <button
+                              onClick={saveAdjustment}
+                              className="text-xs font-bold text-success"
+                            >
+                              Apply
                             </button>
                             <button
-                              onClick={() => setQuotaEdit(null)}
+                              onClick={() => setAdjustEdit(null)}
                               className="text-xs text-outline"
                             >
                               Cancel
@@ -511,15 +590,54 @@ export default function EmployeesPage() {
                           </span>
                         ) : (
                           <button
-                            onClick={() =>
-                              setQuotaEdit({ id: emp.id, quota: String(bal?.quota ?? 12) })
-                            }
+                            onClick={() => setAdjustEdit({ id: emp.id, days: "", note: "" })}
                             className="text-xs font-semibold text-primary hover:underline"
                           >
-                            Edit quota
+                            Adjust balance
                           </button>
                         )}
                       </div>
+
+                      {sitesOpenFor === emp.id && (
+                        <div className="mt-2 ml-[52px] rounded-lg border border-line bg-surface-low p-3">
+                          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+                            Other sites {emp.name.split(" ")[0]} may check in from
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {offices.filter((o) => o.id !== emp.office_id).length === 0 ? (
+                              <p className="text-xs text-ink-muted">
+                                No other locations yet — add them on the Locations page.
+                              </p>
+                            ) : (
+                              offices
+                                .filter((o) => o.id !== emp.office_id)
+                                .map((o) => {
+                                  const on = extraSites[emp.id]?.includes(o.id) ?? false;
+                                  return (
+                                    <button
+                                      key={o.id}
+                                      onClick={() => toggleSite(emp.id, o.id, !on)}
+                                      aria-pressed={on}
+                                      className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                                        on
+                                          ? "border-primary bg-primary text-white"
+                                          : "border-line-strong bg-white text-ink-muted hover:bg-white"
+                                      }`}
+                                    >
+                                      {on && <Check size={11} />}
+                                      {o.name}
+                                    </button>
+                                  );
+                                })
+                            )}
+                          </div>
+                          <p className="mt-2 text-[11px] text-outline">
+                            {emp.office_id
+                              ? "Their primary office is always allowed. Selected sites are allowed too — anywhere else still needs your approval."
+                              : "With no primary office, this employee may check in at any active location. Set a primary office to lock them down."}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   );
                 })}

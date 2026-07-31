@@ -16,13 +16,15 @@ import { elapsedSince, fmtMinutes, fmtTime } from "@/lib/format";
 import type {
   WorkSession,
   WorkLocation,
-  LeaveBalance,
+  LeaveStatus,
   Holiday,
   TeamStatus,
 } from "@/lib/types";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import GeofenceAlert from "@/components/GeofenceAlert";
+import SiteMap from "@/components/SiteMap";
 import Avatar from "@/components/Avatar";
+import { hasGoogleMaps } from "@/lib/googleMaps";
 import { Card, StatCard, Badge, Skeleton, SectionTitle } from "@/components/ui";
 import {
   TimerOff,
@@ -52,7 +54,7 @@ export default function HomePage() {
   const [locations, setLocations] = useState<Record<string, WorkLocation>>({});
   const [monthSessions, setMonthSessions] = useState<WorkSession[]>([]);
   const [weekSessions, setWeekSessions] = useState<WorkSession[]>([]);
-  const [balance, setBalance] = useState<LeaveBalance | null>(null);
+  const [balance, setBalance] = useState<LeaveStatus | null>(null);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [team, setTeam] = useState<TeamStatus[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -64,21 +66,24 @@ export default function HomePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
-  const [office, setOffice] = useState<WorkLocation | null>(null);
+  /** Every site this employee may punch from: primary office + extra assignments. */
+  const [sites, setSites] = useState<WorkLocation[]>([]);
+  const [myPos, setMyPos] = useState<{ lat: number; lng: number } | null>(null);
   const [geoStatus, setGeoStatus] = useState<
     | { checking: true }
-    | { checking: false; distance: number; inside: boolean; accuracy: number }
+    | { checking: false; distance: number; inside: boolean; accuracy: number; name: string }
     | { checking: false; error: string }
     | null
   >(null);
   const meId = me?.id;
   const officeId = me?.office_id;
+  /** The primary office, kept for the messages that name it. */
+  const office = sites.find((s) => s.id === officeId) ?? null;
 
   const refresh = useCallback(async () => {
     if (!meId) return;
     const supabase = supabaseBrowser();
     const monthStart = `${istToday().slice(0, 7)}-01`;
-    const year = Number(istToday().slice(0, 4));
     const weekAgo = new Date(Date.now() - 6 * 86400000).toLocaleDateString("en-CA", {
       timeZone: "Asia/Kolkata",
     });
@@ -108,12 +113,8 @@ export default function HomePage() {
         .select("*")
         .eq("employee_id", meId)
         .gte("work_date", weekAgo),
-      supabase
-        .from("leave_balances")
-        .select("*")
-        .eq("employee_id", meId)
-        .eq("year", year)
-        .maybeSingle(),
+      // Live ledger position — the old leave_balances table no longer moves.
+      supabase.rpc("leave_status", { p_emp: meId }),
       supabase
         .from("holidays")
         .select("*")
@@ -126,7 +127,7 @@ export default function HomePage() {
     setLocations(Object.fromEntries((locs ?? []).map((l: WorkLocation) => [l.id, l])));
     setMonthSessions(month ?? []);
     setWeekSessions(week ?? []);
-    setBalance(bal);
+    setBalance((bal as LeaveStatus) ?? null);
     setHolidays(hols ?? []);
     setTeam((teamRows as TeamStatus[]) ?? []);
     setLoaded(true);
@@ -136,34 +137,55 @@ export default function HomePage() {
     refresh();
   }, [refresh]);
 
-  // Load the employee's assigned office (for the geofence status widget)
+  // Every location this employee is cleared for — primary office plus any extra
+  // sites the admin granted.
   useEffect(() => {
-    if (!officeId) {
-      setOffice(null);
-      return;
-    }
-    supabaseBrowser()
-      .from("locations")
-      .select("*")
-      .eq("id", officeId)
-      .maybeSingle()
-      .then(({ data }) => setOffice(data));
-  }, [officeId]);
+    if (!meId) return;
+    const supabase = supabaseBrowser();
+    supabase
+      .from("employee_locations")
+      .select("location_id")
+      .eq("employee_id", meId)
+      .then(async ({ data }) => {
+        const ids = new Set((data ?? []).map((r: { location_id: string }) => r.location_id));
+        if (officeId) ids.add(officeId);
+        if (ids.size === 0) {
+          setSites([]);
+          return;
+        }
+        const { data: locs } = await supabase
+          .from("locations")
+          .select("*")
+          .in("id", [...ids])
+          .eq("active", true)
+          .order("name");
+        setSites(locs ?? []);
+      });
+  }, [meId, officeId]);
 
   async function checkLocation() {
     setGeoStatus({ checking: true });
     try {
       const pos = await getPosition();
-      if (!office) {
-        setGeoStatus({ checking: false, error: "No office assigned" });
+      setMyPos({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      if (sites.length === 0) {
+        setGeoStatus({ checking: false, error: "No work location assigned to you yet" });
         return;
       }
-      const d = distanceM(pos.coords.latitude, pos.coords.longitude, office.lat, office.lng);
+      // Match against the nearest site you're cleared for — same rule the server uses.
+      const scored = sites
+        .map((s) => ({
+          site: s,
+          d: distanceM(pos.coords.latitude, pos.coords.longitude, s.lat, s.lng),
+        }))
+        .sort((a, b) => a.d - b.d);
+      const best = scored.find((x) => x.d <= x.site.radius_m) ?? scored[0];
       setGeoStatus({
         checking: false,
-        distance: Math.round(d),
-        inside: d <= office.radius_m,
+        distance: Math.round(best.d),
+        inside: best.d <= best.site.radius_m,
         accuracy: Math.round(pos.coords.accuracy),
+        name: best.site.name,
       });
     } catch (e) {
       setGeoStatus({ checking: false, error: geoErrorMessage(e) });
@@ -257,7 +279,7 @@ export default function HomePage() {
   const monthDone = monthSessions.filter((s) => (s.total_minutes ?? 0) > 0);
   const monthMinutes = monthDone.reduce((a, s) => a + (s.total_minutes ?? 0), 0);
   const monthOT = monthDone.reduce((a, s) => a + (s.overtime_minutes ?? 0), 0);
-  const leaveLeft = balance ? balance.quota - balance.used : null;
+  const leaveLeft = balance ? balance.total_available : null;
 
   // Last 7 days worked-minutes, oldest → newest
   const weekByDate = new Map(weekSessions.map((s) => [s.work_date, s.total_minutes ?? 0]));
@@ -433,18 +455,20 @@ export default function HomePage() {
         <p className="rounded-lg bg-danger-tint px-4 py-3 text-sm text-danger-deep">{error}</p>
       )}
 
-      {/* Geofence status (assigned-office employees) */}
-      {office && (
-        <Card className="p-4">
-          <div className="flex items-center justify-between gap-3">
+      {/* Where you may clock in — primary office plus any extra approved sites */}
+      {sites.length > 0 && (
+        <Card className="overflow-hidden">
+          <div className="flex items-center justify-between gap-3 p-4">
             <div className="min-w-0">
               <p className="flex items-center gap-1.5 text-sm font-semibold text-ink">
                 <MapPin size={15} className="text-primary" />
-                {office.name}
+                {sites.length === 1
+                  ? sites[0].name
+                  : `${sites.length} approved work locations`}
               </p>
               <p className="mt-0.5 text-xs text-ink-muted">
-                Allowed radius: {office.radius_m} m · outside this, check-in and check-out need
-                HR permission
+                Clock in from any of these. Anywhere else, check-in and check-out need HR
+                permission.
               </p>
             </div>
             <button
@@ -455,22 +479,57 @@ export default function HomePage() {
               {geoStatus?.checking ? "Checking…" : "Check location"}
             </button>
           </div>
+
+          <ul className="border-t border-line px-4 py-3 text-[13px]">
+            {sites.map((s) => (
+              <li key={s.id} className="flex items-center justify-between gap-3 py-1">
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <span className="truncate text-ink">{s.name}</span>
+                  {s.id === officeId && (
+                    <span className="shrink-0 rounded bg-primary-tint px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary-deep">
+                      Primary
+                    </span>
+                  )}
+                </span>
+                <span className="flex shrink-0 items-center gap-2 text-xs text-outline">
+                  <span className="tabular-nums">{s.radius_m} m</span>
+                  <a
+                    href={`https://www.google.com/maps?q=${s.lat},${s.lng}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-medium text-primary hover:underline"
+                  >
+                    Directions
+                  </a>
+                </span>
+              </li>
+            ))}
+          </ul>
+
+          {hasGoogleMaps() && (
+            <div className="border-t border-line">
+              <SiteMap sites={sites} me={myPos} height={220} />
+            </div>
+          )}
+
           {geoStatus && !geoStatus.checking && "distance" in geoStatus && (
             <div
-              className={`mt-3 flex items-center justify-between rounded-lg px-3 py-2 text-sm ${
+              className={`m-4 mt-3 flex items-center justify-between rounded-lg px-3 py-2 text-sm ${
                 geoStatus.inside ? "bg-success-tint text-success-deep" : "bg-danger-tint text-danger-deep"
               }`}
             >
               <span className="font-semibold">
-                {geoStatus.inside ? "✓ Inside geofence" : "✕ Outside geofence"}
+                {geoStatus.inside
+                  ? `✓ Inside ${geoStatus.name}`
+                  : `✕ Outside every approved site`}
               </span>
               <span className="tabular-nums">
-                {geoStatus.distance} m away · ±{geoStatus.accuracy} m
+                {geoStatus.distance} m from {geoStatus.name} · ±{geoStatus.accuracy} m
               </span>
             </div>
           )}
           {geoStatus && !geoStatus.checking && "error" in geoStatus && (
-            <p className="mt-3 rounded-lg bg-danger-tint px-3 py-2 text-sm text-danger-deep">
+            <p className="m-4 mt-3 rounded-lg bg-danger-tint px-3 py-2 text-sm text-danger-deep">
               {geoStatus.error}
             </p>
           )}

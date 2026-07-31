@@ -8,7 +8,9 @@
 --   T2 expiry beyond carry window        T7 sandwich removed on cancel
 --   T3 one-month carry-forward           T8 duplicate attendance blocked
 --   T4 oldest-first consumption          T9 geofence 200m boundary (Haversine)
---   T5 working-days exclude Sundays
+--   T5 working-days exclude Sundays     T10 multi-location: extra approved site
+--                                       T11 multi-location: unassigned fallback
+--                                       T12 admin ledger adjustment
 --
 -- Geofence inside/outside end-to-end, GPS-error handling, and Audit RBAC
 -- (route guard / no-write / no-approve / read-only) are covered by the app-level
@@ -81,6 +83,38 @@ begin
   boundary_out := distance_m(19.0760,72.8777, 19.07960,72.8777);  -- ~222m -> outside
   if not (boundary_in <= 200 and boundary_out > 200) then
     raise exception 'T9 geofence-boundary FAIL: in=% out=%',round(boundary_in),round(boundary_out);
+  end if;
+
+  -- T10/T11: an employee locked to one office is refused elsewhere until the
+  -- admin grants that second site, and an unassigned employee matches any site.
+  update employees set office_id='11111111-1111-1111-1111-111111111111' where id=t;
+  select * into r from nearest_allowed_location(t, 19.1136, 72.8697);  -- at Client Site
+  if r.dist <= r.radius_m then
+    raise exception 'T10 multi-location FAIL: office-only staff allowed off-site (%m)', round(r.dist);
+  end if;
+
+  insert into employee_locations(employee_id, location_id)
+    values (t,'22222222-2222-2222-2222-222222222222');
+  select * into r from nearest_allowed_location(t, 19.1136, 72.8697);
+  if r.dist > r.radius_m or r.id <> '22222222-2222-2222-2222-222222222222' then
+    raise exception 'T10 multi-location FAIL: granted site not honoured (%m at %)', round(r.dist), r.id;
+  end if;
+
+  delete from employee_locations where employee_id=t;
+  update employees set office_id=null where id=t;
+  if has_location_assignment(t) then raise exception 'T11 fallback FAIL: still assigned'; end if;
+  select * into r from nearest_allowed_location(t, 19.1136, 72.8697);
+  if r.assigned or r.dist > r.radius_m then
+    raise exception 'T11 fallback FAIL: unassigned staff not matched to nearest active site';
+  end if;
+
+  -- T12: admin credit/deduct lands in the ledger and moves the available total.
+  select coalesce(sum(days),0) into prevb from leave_ledger where employee_id=t;
+  insert into leave_ledger(employee_id,alloc_month,kind,days,note)
+    values (t,v_cur,'adjustment',1.5,'test adjustment');
+  select coalesce(sum(days),0) into curb from leave_ledger where employee_id=t;
+  if curb - prevb <> 1.5 then
+    raise exception 'T12 adjustment FAIL: % -> %', prevb, curb;
   end if;
 
   delete from employees where emp_id='TST999';

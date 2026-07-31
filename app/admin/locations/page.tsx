@@ -5,8 +5,9 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 import { getPosition, geoErrorMessage } from "@/lib/hooks";
 import type { WorkLocation } from "@/lib/types";
 import MapPicker from "@/components/MapPicker";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import { Card, FieldLabel, inputCls, EmptyState } from "@/components/ui";
-import { Building2, LocateFixed, Plus, X, MapPin } from "lucide-react";
+import { Building2, LocateFixed, Plus, X, MapPin, Trash2 } from "lucide-react";
 
 const emptyForm = { id: "", name: "", address: "", lat: "", lng: "", radius_m: "200" };
 // Default map view when adding a fresh location (Mumbai)
@@ -18,11 +19,27 @@ export default function LocationsPage() {
   const [showForm, setShowForm] = useState(false);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<WorkLocation | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  /** How many employees each location is an approved site for. */
+  const [usage, setUsage] = useState<Record<string, number>>({});
 
   const refresh = useCallback(async () => {
-    const { data } = await supabaseBrowser().from("locations").select("*").order("name");
+    const supabase = supabaseBrowser();
+    const [{ data }, { data: primary }, { data: extra }] = await Promise.all([
+      supabase.from("locations").select("*").order("name"),
+      supabase.from("employees").select("office_id").not("office_id", "is", null),
+      supabase.from("employee_locations").select("location_id"),
+    ]);
     setLocations(data ?? []);
+    const counts: Record<string, number> = {};
+    for (const e of (primary ?? []) as { office_id: string }[])
+      counts[e.office_id] = (counts[e.office_id] ?? 0) + 1;
+    for (const e of (extra ?? []) as { location_id: string }[])
+      counts[e.location_id] = (counts[e.location_id] ?? 0) + 1;
+    setUsage(counts);
   }, []);
 
   useEffect(() => {
@@ -71,14 +88,21 @@ export default function LocationsPage() {
       radius_m: Math.round(Number(form.radius_m)),
     };
     const supabase = supabaseBrowser();
-    const { error } = form.id
-      ? await supabase.from("locations").update(payload).eq("id", form.id)
-      : await supabase.from("locations").insert(payload);
+    // .select() so an RLS-filtered no-op comes back as zero rows instead of a
+    // silent success — an edit that changed nothing used to look like it worked.
+    const { data, error } = form.id
+      ? await supabase.from("locations").update(payload).eq("id", form.id).select()
+      : await supabase.from("locations").insert(payload).select();
     setBusy(false);
     if (error) {
       setError(error.message);
       return;
     }
+    if (!data || data.length === 0) {
+      setError("That change wasn't saved — your account may not have admin rights any more.");
+      return;
+    }
+    setNotice(form.id ? `“${payload.name}” updated.` : `“${payload.name}” added.`);
     setForm(emptyForm);
     setFormErrors({});
     setShowForm(false);
@@ -86,7 +110,35 @@ export default function LocationsPage() {
   }
 
   async function toggleActive(loc: WorkLocation) {
-    await supabaseBrowser().from("locations").update({ active: !loc.active }).eq("id", loc.id);
+    setError(null);
+    const { error } = await supabaseBrowser()
+      .from("locations")
+      .update({ active: !loc.active })
+      .eq("id", loc.id);
+    if (error) setError(error.message);
+    refresh();
+  }
+
+  async function doDelete() {
+    if (!deleteTarget) return;
+    setDeleteBusy(true);
+    setError(null);
+    const { error } = await supabaseBrowser()
+      .from("locations")
+      .delete()
+      .eq("id", deleteTarget.id);
+    setDeleteBusy(false);
+    if (error) {
+      setError(
+        error.message.includes("violates foreign key")
+          ? "This location is referenced by past attendance records. Disable it instead of deleting."
+          : error.message
+      );
+      setDeleteTarget(null);
+      return;
+    }
+    setNotice(`“${deleteTarget.name}” deleted.`);
+    setDeleteTarget(null);
     refresh();
   }
 
@@ -96,11 +148,17 @@ export default function LocationsPage() {
   return (
     <main className="space-y-4 p-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold tracking-tight">Approved locations</h1>
+        <div>
+          <h1 className="text-lg font-semibold tracking-tight">Approved locations</h1>
+          <p className="text-xs text-ink-muted">
+            Every site staff may check in from. Assign them to people on the Employees page.
+          </p>
+        </div>
         <button
           onClick={() => {
             setForm(emptyForm);
             setFormErrors({});
+            setNotice(null);
             setShowForm(!showForm);
           }}
           className="flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
@@ -109,6 +167,13 @@ export default function LocationsPage() {
           {showForm ? "Close" : "Add location"}
         </button>
       </div>
+
+      {notice && (
+        <p className="rounded-lg bg-success-chip px-3 py-2 text-sm text-success-deep">{notice}</p>
+      )}
+      {!showForm && error && (
+        <p className="rounded-lg bg-danger-tint px-3 py-2 text-sm text-danger-deep">{error}</p>
+      )}
 
       {showForm && (
         <Card className="p-5">
@@ -152,8 +217,14 @@ export default function LocationsPage() {
                   lat={mapLat}
                   lng={mapLng}
                   radiusM={Math.max(20, Number(form.radius_m) || 200)}
-                  onPick={(lat, lng) =>
-                    setForm((f) => ({ ...f, lat: String(lat), lng: String(lng) }))
+                  onPick={(lat, lng, address) =>
+                    setForm((f) => ({
+                      ...f,
+                      lat: String(lat),
+                      lng: String(lng),
+                      // An address search fills the blank address field for you.
+                      address: address && !f.address.trim() ? address : f.address,
+                    }))
                   }
                 />
               </div>
@@ -243,12 +314,17 @@ export default function LocationsPage() {
                     >
                       {loc.lat.toFixed(5)}, {loc.lng.toFixed(5)}
                     </a>
-                    <p className="text-xs text-outline">Radius {loc.radius_m}m</p>
+                    <p className="text-xs text-outline">
+                      Radius {loc.radius_m}m · {usage[loc.id] ?? 0} employee
+                      {(usage[loc.id] ?? 0) !== 1 ? "s" : ""} assigned
+                    </p>
                   </div>
                 </div>
                 <div className="flex shrink-0 gap-2">
                   <button
                     onClick={() => {
+                      setNotice(null);
+                      setError(null);
                       setForm({
                         id: loc.id,
                         name: loc.name,
@@ -275,12 +351,38 @@ export default function LocationsPage() {
                   >
                     {loc.active ? "Disable" : "Enable"}
                   </button>
+                  <button
+                    onClick={() => {
+                      setNotice(null);
+                      setError(null);
+                      setDeleteTarget(loc);
+                    }}
+                    aria-label={`Delete ${loc.name}`}
+                    className="flex h-8 items-center rounded-lg bg-slate-100 px-2.5 text-xs font-semibold text-ink-muted transition-colors hover:bg-danger-tint hover:text-danger-deep"
+                  >
+                    <Trash2 size={13} />
+                  </button>
                 </div>
               </div>
             ))}
           </div>
         </Card>
       )}
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title={`Delete ${deleteTarget?.name ?? ""}?`}
+        message={
+          (usage[deleteTarget?.id ?? ""] ?? 0) > 0
+            ? `${usage[deleteTarget?.id ?? ""]} employee(s) are cleared to check in here. Deleting removes it from their approved sites.`
+            : "This removes the location permanently. Past attendance that referenced it is kept."
+        }
+        confirmLabel="Delete"
+        danger
+        busy={deleteBusy}
+        onConfirm={doDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </main>
   );
 }

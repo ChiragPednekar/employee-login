@@ -19,6 +19,18 @@ export type LeaveStatus = {
   total_available: number;
   expiring_days: number;
   expiring_on: string;
+  sandwich_unpaid_month?: number;
+  sandwich_unpaid_total?: number;
+};
+
+/** One row of leave_balances_all() — live ledger position, admin/manager view. */
+export type LeaveBalanceRow = {
+  employee_id: string;
+  current_days: number;
+  carried_days: number;
+  total_available: number;
+  taken_this_year: number;
+  pending_days: number;
 };
 
 export type LeaveLedgerEntry = {
@@ -85,6 +97,11 @@ export type LeaveRequest = {
   created_at: string;
 };
 
+/**
+ * Vestigial. The yearly quota/used table was superseded by leave_ledger; nothing
+ * writes it any more, so screens must read leave_status / leave_balances_all.
+ * @deprecated
+ */
 export type LeaveBalance = {
   employee_id: string;
   year: number;
