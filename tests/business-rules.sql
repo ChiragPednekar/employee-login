@@ -11,6 +11,7 @@
 --   T5 working-days exclude Sundays     T10 multi-location: extra approved site
 --                                       T11 multi-location: unassigned fallback
 --                                       T12 admin ledger adjustment
+--                                       T13 denied check-in doesn't burn the day
 --
 -- Geofence inside/outside end-to-end, GPS-error handling, and Audit RBAC
 -- (route guard / no-write / no-approve / read-only) are covered by the app-level
@@ -116,6 +117,22 @@ begin
   if curb - prevb <> 1.5 then
     raise exception 'T12 adjustment FAIL: % -> %', prevb, curb;
   end if;
+
+  -- T13: an HR-denied check-in must not consume the employee's whole day. The
+  -- (employee_id, work_date) unique index means start_session has to reuse the
+  -- denied row rather than insert a second one.
+  delete from work_sessions where employee_id=t;
+  update employees set office_id='11111111-1111-1111-1111-111111111111' where id=t;
+  insert into work_sessions(employee_id,work_date,started_at,requested_at,pending_kind,
+                            start_lat,start_lng,start_distance_m,status)
+    values (t, current_date, null, now(), 'check_in', 19.0, 72.8, 5000, 'denied');
+  update work_sessions set status='active', started_at=now(), pending_kind=null,
+    start_location_id='11111111-1111-1111-1111-111111111111', start_distance_m=0
+    where employee_id=t and work_date=current_date and status='denied';
+  select count(*) into n from work_sessions
+    where employee_id=t and work_date=current_date and status='active';
+  if n <> 1 then raise exception 'T13 denied-retry FAIL: denied row not reusable (%)', n; end if;
+  delete from work_sessions where employee_id=t;
 
   delete from employees where emp_id='TST999';
   raise notice 'ALL TESTS PASSED';

@@ -23,12 +23,23 @@ export default function LoginPage() {
   const [mfaCode, setMfaCode] = useState("");
 
   async function routeByRole() {
-    const { data } = await supabase
-      .from("employees")
-      .select("role")
-      .limit(1)
-      .maybeSingle();
+    // Must filter by auth_user_id. Admins and auditors can read every employee
+    // row, so an unfiltered `limit(1)` returns whoever happens to come first —
+    // which routed the audit account to /admin and would send an admin to the
+    // employee home as soon as row order shifted.
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const { data } = user
+      ? await supabase
+          .from("employees")
+          .select("role")
+          .eq("auth_user_id", user.id)
+          .maybeSingle()
+      : { data: null };
     const role = data?.role;
+    // Managers keep landing on their own attendance home; they reach the team
+    // view from the "Team" link there.
     router.replace(role === "admin" ? "/admin" : role === "audit" ? "/audit" : "/");
     router.refresh();
   }

@@ -9,7 +9,9 @@ import {
   monthRange,
   isLate,
   sessionFlags,
-  LATE_LABEL,
+  lateLabel,
+  DEFAULT_SHIFT_POLICY,
+  type ShiftPolicy,
 } from "@/lib/analytics";
 import { Card, StatCard, SectionTitle, Skeleton, EmptyState } from "@/components/ui";
 import {
@@ -31,13 +33,15 @@ export default function AnalyticsPage() {
   const [month, setMonth] = useState(istToday().slice(0, 7));
   const [rows, setRows] = useState<Row[]>([]);
   const [activeCount, setActiveCount] = useState(0);
+  // Punctuality must follow the org policy set on /admin/settings, not a constant.
+  const [policy, setPolicy] = useState<ShiftPolicy>(DEFAULT_SHIFT_POLICY);
   const [loaded, setLoaded] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoaded(false);
     const { from, to } = monthRange(month);
     const supabase = supabaseBrowser();
-    const [{ data }, { count }] = await Promise.all([
+    const [{ data }, { count }, { data: sett }] = await Promise.all([
       supabase
         .from("work_sessions")
         .select("*, emp:employees!work_sessions_employee_id_fkey(name, emp_id, department)")
@@ -49,9 +53,14 @@ export default function AnalyticsPage() {
         .select("id", { count: "exact", head: true })
         .eq("active", true)
         .eq("role", "employee"),
+      supabase
+        .from("app_settings")
+        .select("shift_start, shift_end, late_grace_min, early_departure_grace_min")
+        .maybeSingle(),
     ]);
     setRows((data as Row[]) ?? []);
     setActiveCount(count ?? 0);
+    if (sett) setPolicy(sett as ShiftPolicy);
     setLoaded(true);
   }, [month]);
 
@@ -63,7 +72,7 @@ export default function AnalyticsPage() {
     const worked = rows.filter((r) => (r.total_minutes ?? 0) > 0);
     const totalMin = worked.reduce((a, r) => a + (r.total_minutes ?? 0), 0);
     const otMin = worked.reduce((a, r) => a + (r.overtime_minutes ?? 0), 0);
-    const lateCount = worked.filter((r) => isLate(r)).length;
+    const lateCount = worked.filter((r) => isLate(r, policy)).length;
     const flaggedCount = rows.filter((r) => sessionFlags(r).length > 0).length;
 
     // Distinct working days present, for attendance rate
@@ -108,7 +117,7 @@ export default function AnalyticsPage() {
       e.days += 1;
       e.minutes += r.total_minutes ?? 0;
       e.ot += r.overtime_minutes ?? 0;
-      if (isLate(r)) e.late += 1;
+      if (isLate(r, policy)) e.late += 1;
     }
     const employees = [...byEmp.values()].sort((a, b) => b.ot - a.ot);
 
@@ -138,7 +147,7 @@ export default function AnalyticsPage() {
       departments,
       workedCount: worked.length,
     };
-  }, [rows, activeCount]);
+  }, [rows, activeCount, policy]);
 
   const maxTrend = Math.max(1, ...stats.trend.map((d) => d.count));
 
@@ -183,7 +192,7 @@ export default function AnalyticsPage() {
         @media print{body{margin:12mm}}
       </style></head><body>
       <h1>WorkLog — Monthly Attendance Report</h1>
-      <div class="sub">${title} · generated ${new Date().toLocaleDateString("en-IN")} · Late = clock-in ${LATE_LABEL}</div>
+      <div class="sub">${title} · generated ${new Date().toLocaleDateString("en-IN")} · Late = clock-in ${lateLabel(policy)}</div>
       <div class="kpis">
         <div class="kpi"><div class="l">Attendance rate</div><div class="v">${stats.attendanceRate}%</div></div>
         <div class="kpi"><div class="l">Total hours</div><div class="v">${(stats.totalMin / 60).toFixed(0)}h</div></div>
@@ -298,7 +307,7 @@ export default function AnalyticsPage() {
                 <h2 className="text-sm font-semibold text-ink">Punctuality</h2>
               </div>
               <span className="rounded bg-surface-low px-2 py-0.5 text-[11px] text-ink-muted">
-                Late = clock-in {LATE_LABEL}
+                Late = clock-in {lateLabel(policy)}
               </span>
             </div>
             <div className="flex h-3 overflow-hidden rounded-full bg-surface-low">

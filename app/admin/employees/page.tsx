@@ -207,7 +207,20 @@ export default function EmployeesPage() {
   }
 
   async function toggleActive(emp: Employee) {
-    await supabaseBrowser().from("employees").update({ active: !emp.active }).eq("id", emp.id);
+    setError(null);
+    const { data, error } = await supabaseBrowser()
+      .from("employees")
+      .update({ active: !emp.active })
+      .eq("id", emp.id)
+      .select();
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    if (!data || data.length === 0) {
+      setError(`${emp.name} wasn't updated — only an admin can change employees.`);
+      return;
+    }
     refresh();
   }
 

@@ -10,7 +10,7 @@ function urlBase64ToUint8Array(base64String: string) {
   return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
 }
 
-async function subscribe(employeeId: string) {
+async function subscribe() {
   const reg = await navigator.serviceWorker.ready;
   const sub = await reg.pushManager.subscribe({
     userVisibleOnly: true,
@@ -19,16 +19,15 @@ async function subscribe(employeeId: string) {
     ),
   });
   const json = sub.toJSON();
-  const supabase = supabaseBrowser();
-  await supabase.from("push_subscriptions").upsert(
-    {
-      employee_id: employeeId,
-      endpoint: sub.endpoint,
-      p256dh: json.keys!.p256dh,
-      auth: json.keys!.auth,
-    },
-    { onConflict: "endpoint" }
-  );
+  // Goes through an RPC: a direct upsert can't take the ON CONFLICT path (there
+  // is no UPDATE policy), which left a shared handset bound to whoever signed in
+  // on it first. The RPC rebinds the endpoint to the current employee.
+  const { error } = await supabaseBrowser().rpc("save_push_subscription", {
+    p_endpoint: sub.endpoint,
+    p_p256dh: json.keys!.p256dh,
+    p_auth: json.keys!.auth,
+  });
+  if (error) throw new Error(error.message);
 }
 
 const DISMISS_KEY = "worklog_push_prompt_dismissed";
@@ -42,7 +41,7 @@ export default function PushSetup({ employeeId }: { employeeId: string }) {
     if (!("Notification" in window) || !("PushManager" in window)) return;
 
     if (Notification.permission === "granted") {
-      subscribe(employeeId).catch(() => {});
+      subscribe().catch(() => {});
     } else if (
       Notification.permission === "default" &&
       !localStorage.getItem(DISMISS_KEY)
@@ -63,7 +62,7 @@ export default function PushSetup({ employeeId }: { employeeId: string }) {
           onClick={async () => {
             setShowPrompt(false);
             const perm = await Notification.requestPermission();
-            if (perm === "granted") subscribe(employeeId).catch(() => {});
+            if (perm === "granted") subscribe().catch(() => {});
           }}
           className="rounded-lg bg-primary-hover px-4 py-2 text-sm font-semibold"
         >

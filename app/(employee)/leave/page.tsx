@@ -94,8 +94,14 @@ export default function LeavePage() {
   }
 
   async function cancel(id: string) {
+    setError(null);
     const { error } = await supabaseBrowser().rpc("cancel_leave", { p_id: id });
-    if (!error) refresh();
+    if (error) {
+      // Previously swallowed — a refused cancellation looked like nothing happened.
+      setError(error.message);
+      return;
+    }
+    refresh();
   }
 
   const calendarDays =
@@ -103,6 +109,9 @@ export default function LeavePage() {
 
   return (
     <main className="space-y-6 p-4 md:p-6">
+      {error && !showForm && (
+        <p className="rounded-lg bg-danger-tint px-3 py-2 text-sm text-danger-deep">{error}</p>
+      )}
       {/* Balance card (ledger model) */}
       <Card featured className="p-6">
         <div className="flex items-center justify-between gap-4">

@@ -60,7 +60,20 @@ export default function HolidaysPage() {
   }
 
   async function remove(h: Holiday) {
-    await supabaseBrowser().from("holidays").delete().eq("id", h.id);
+    setError(null);
+    const { data, error } = await supabaseBrowser()
+      .from("holidays")
+      .delete()
+      .eq("id", h.id)
+      .select();
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    if (!data || data.length === 0) {
+      setError(`“${h.name}” wasn't removed — only an admin can change holidays.`);
+      return;
+    }
     refresh();
   }
 

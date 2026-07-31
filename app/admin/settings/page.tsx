@@ -46,13 +46,20 @@ export default function SettingsPage() {
     setBusy(true);
     setError(null);
     setSaved(false);
-    const { error } = await supabaseBrowser()
+    // .select() so an RLS-filtered no-op comes back as zero rows — without it a
+    // non-admin saw "✓ Saved" while nothing was written.
+    const { data, error } = await supabaseBrowser()
       .from("app_settings")
       .update({ ...s, updated_at: new Date().toISOString() })
-      .eq("id", true);
+      .eq("id", true)
+      .select();
     setBusy(false);
     if (error) {
       setError(error.message);
+      return;
+    }
+    if (!data || data.length === 0) {
+      setError("Settings weren't saved — only an admin can change these.");
       return;
     }
     setSaved(true);

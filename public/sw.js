@@ -1,4 +1,5 @@
-const CACHE = "worklog-v1";
+// Bump on release so the activate handler drops the previous cache.
+const CACHE = "worklog-v2";
 const OFFLINE_URL = "/offline.html";
 const PRECACHE = [OFFLINE_URL, "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png"];
 

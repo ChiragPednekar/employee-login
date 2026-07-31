@@ -1,9 +1,39 @@
 import type { WorkSession } from "@/lib/types";
 
-/** Shift start assumption for punctuality. Configurable later — surfaced in the UI. */
+/** Fallback shift policy, used only until app_settings loads (or if it can't be read). */
 export const SHIFT_START = "09:00";
 export const LATE_GRACE_MIN = 15;
-export const LATE_LABEL = "after 9:15 AM";
+
+/** The org-wide punctuality policy, as stored in app_settings. */
+export type ShiftPolicy = {
+  shift_start: string;
+  shift_end: string;
+  late_grace_min: number;
+  early_departure_grace_min: number;
+};
+
+export const DEFAULT_SHIFT_POLICY: ShiftPolicy = {
+  shift_start: SHIFT_START,
+  shift_end: "18:00",
+  late_grace_min: LATE_GRACE_MIN,
+  early_departure_grace_min: 15,
+};
+
+/** "HH:MM[:SS]" → minutes past midnight. */
+export function timeToMinutes(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + (m || 0);
+}
+
+/** Human-readable cutoff, e.g. "after 9:15 AM" — for report headers. */
+export function lateLabel(policy: ShiftPolicy): string {
+  const mins = timeToMinutes(policy.shift_start) + policy.late_grace_min;
+  const h24 = Math.floor(mins / 60) % 24;
+  const m = mins % 60;
+  const ampm = h24 < 12 ? "AM" : "PM";
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `after ${h12}:${String(m).padStart(2, "0")} ${ampm}`;
+}
 
 /** Minutes past IST midnight. Returns -1 when there is no time yet (a check-in
  *  still awaiting HR permission), so such sessions never count as late. */
@@ -19,10 +49,12 @@ export function istClockInMinutes(startedAt: string | null | undefined): number 
   return h * 60 + m;
 }
 
-export function isLate(session: Pick<WorkSession, "started_at" | "status">): boolean {
+export function isLate(
+  session: Pick<WorkSession, "started_at" | "status">,
+  policy: ShiftPolicy = DEFAULT_SHIFT_POLICY
+): boolean {
   if (session.status === "denied" || session.status === "pending_approval") return false;
-  const [sh, sm] = SHIFT_START.split(":").map(Number);
-  const threshold = sh * 60 + sm + LATE_GRACE_MIN;
+  const threshold = timeToMinutes(policy.shift_start) + policy.late_grace_min;
   return istClockInMinutes(session.started_at) > threshold;
 }
 

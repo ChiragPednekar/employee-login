@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import SWRegister from "@/components/SWRegister";
+import ChunkReloader from "@/components/ChunkReloader";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
@@ -30,6 +31,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${inter.className} bg-surface text-ink antialiased`}>
         <SWRegister />
+        <ChunkReloader />
         {children}
       </body>
     </html>
