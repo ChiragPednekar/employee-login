@@ -79,6 +79,14 @@ export default function HomePage() {
   const officeId = me?.office_id;
   /** The primary office, kept for the messages that name it. */
   const office = sites.find((s) => s.id === officeId) ?? null;
+  /** Closest approved site to where they actually are — what the refusal popup
+   *  should name, since any approved site is valid, not just their office. */
+  const nearestSite =
+    myPos && sites.length > 0
+      ? sites
+          .map((s) => ({ s, d: distanceM(myPos.lat, myPos.lng, s.lat, s.lng) }))
+          .sort((a, b) => a.d - b.d)[0].s
+      : null;
 
   const refresh = useCallback(async () => {
     if (!meId) return;
@@ -137,30 +145,28 @@ export default function HomePage() {
     refresh();
   }, [refresh]);
 
-  // Every location this employee is cleared for — primary office plus any extra
-  // sites the admin granted.
+  // Every location this employee may punch from. Mirrors the server rule in
+  // nearest_allowed_location(): normally that is every approved site, and only
+  // when the org turns on restrict_to_assigned_sites does it narrow to this
+  // employee's primary office plus any extra sites the admin granted.
   useEffect(() => {
     if (!meId) return;
     const supabase = supabaseBrowser();
-    supabase
-      .from("employee_locations")
-      .select("location_id")
-      .eq("employee_id", meId)
-      .then(async ({ data }) => {
-        const ids = new Set((data ?? []).map((r: { location_id: string }) => r.location_id));
-        if (officeId) ids.add(officeId);
-        if (ids.size === 0) {
-          setSites([]);
-          return;
-        }
-        const { data: locs } = await supabase
-          .from("locations")
-          .select("*")
-          .in("id", [...ids])
-          .eq("active", true)
-          .order("name");
-        setSites(locs ?? []);
-      });
+    (async () => {
+      const [{ data: settings }, { data: extra }] = await Promise.all([
+        supabase.from("app_settings").select("restrict_to_assigned_sites").maybeSingle(),
+        supabase.from("employee_locations").select("location_id").eq("employee_id", meId),
+      ]);
+
+      const ids = new Set((extra ?? []).map((r: { location_id: string }) => r.location_id));
+      if (officeId) ids.add(officeId);
+      const restricted = Boolean(settings?.restrict_to_assigned_sites) && ids.size > 0;
+
+      let q = supabase.from("locations").select("*").eq("active", true).order("name");
+      if (restricted) q = q.in("id", [...ids]);
+      const { data: locs } = await q;
+      setSites(locs ?? []);
+    })();
   }, [meId, officeId]);
 
   async function checkLocation() {
@@ -169,7 +175,7 @@ export default function HomePage() {
       const pos = await getPosition();
       setMyPos({ lat: pos.coords.latitude, lng: pos.coords.longitude });
       if (sites.length === 0) {
-        setGeoStatus({ checking: false, error: "No work location assigned to you yet" });
+        setGeoStatus({ checking: false, error: "No approved work locations set up yet — ask your admin." });
         return;
       }
       // Match against the nearest site you're cleared for — same rule the server uses.
@@ -212,9 +218,10 @@ export default function HomePage() {
       const pos = await getPosition();
       if (pos.coords.accuracy > ACCURACY_LIMIT_M) {
         throw new Error(
-          `Location accuracy is too low (±${Math.round(pos.coords.accuracy)} m) to verify your office reliably. Move to an open area and try again.`
+          `Location accuracy is too low (±${Math.round(pos.coords.accuracy)} m) to verify your location reliably. Move to an open area and try again.`
         );
       }
+      setMyPos({ lat: pos.coords.latitude, lng: pos.coords.longitude });
       const { data, error } = await supabaseBrowser().rpc("start_session", {
         p_lat: pos.coords.latitude,
         p_lng: pos.coords.longitude,
@@ -242,9 +249,10 @@ export default function HomePage() {
       const pos = await getPosition();
       if (pos.coords.accuracy > ACCURACY_LIMIT_M) {
         throw new Error(
-          `Location accuracy is too low (±${Math.round(pos.coords.accuracy)} m) to verify your office reliably. Move to an open area and try again.`
+          `Location accuracy is too low (±${Math.round(pos.coords.accuracy)} m) to verify your location reliably. Move to an open area and try again.`
         );
       }
+      setMyPos({ lat: pos.coords.latitude, lng: pos.coords.longitude });
       const { data, error } = await supabaseBrowser().rpc("end_session", {
         p_lat: pos.coords.latitude,
         p_lng: pos.coords.longitude,
@@ -699,15 +707,15 @@ export default function HomePage() {
         open={blocked !== null}
         kind={blocked?.kind ?? "check_in"}
         distanceM={blocked?.distance ?? null}
-        radiusM={office?.radius_m ?? null}
-        officeName={office?.name}
+        radiusM={nearestSite?.radius_m ?? office?.radius_m ?? null}
+        officeName={nearestSite?.name ?? office?.name}
         onClose={() => setBlocked(null)}
       />
 
       <ConfirmDialog
         open={confirming === "start"}
         title="Clock in now?"
-        message="We'll check your location against your office. If you're outside the allowed radius, your check-in is refused and sent to HR for permission — the timer starts only once they approve."
+        message="We'll check your location against the approved work locations. If you're not within range of any of them, your check-in is refused and sent to HR for permission — the timer starts only once they approve."
         confirmLabel="Yes, clock in"
         busy={busy}
         onConfirm={doStart}

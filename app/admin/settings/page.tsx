@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { Card, FieldLabel, inputCls } from "@/components/ui";
-import { Clock, Plane, Sandwich } from "lucide-react";
+import { Clock, Plane, Sandwich, MapPin } from "lucide-react";
 
 type Settings = {
   shift_start: string;
@@ -13,6 +13,7 @@ type Settings = {
   monthly_leave_alloc: number;
   carry_forward_months: number;
   sandwich_enabled: boolean;
+  restrict_to_assigned_sites: boolean;
 };
 
 export default function SettingsPage() {
@@ -32,6 +33,7 @@ export default function SettingsPage() {
         monthly_leave_alloc: data.monthly_leave_alloc,
         carry_forward_months: data.carry_forward_months,
         sandwich_enabled: data.sandwich_enabled,
+        restrict_to_assigned_sites: data.restrict_to_assigned_sites,
       });
     }
   }, []);
@@ -123,6 +125,29 @@ export default function SettingsPage() {
           <p className="text-xs text-outline">
             Changing these affects future monthly credits &amp; expiry — not already-issued balances.
           </p>
+        </Card>
+
+        <Card className="p-5">
+          <label className="flex items-start gap-3">
+            <input
+              type="checkbox"
+              checked={s.restrict_to_assigned_sites}
+              onChange={(e) => setS({ ...s, restrict_to_assigned_sites: e.target.checked })}
+              className="mt-0.5 h-4 w-4 rounded border-line-strong text-primary focus:ring-primary"
+            />
+            <span>
+              <span className="flex items-center gap-1.5 text-sm font-semibold text-ink">
+                <MapPin size={15} className="text-primary" />
+                Limit staff to their own assigned sites
+              </span>
+              <span className="mt-0.5 block text-xs text-ink-muted">
+                Off (recommended): anyone may check in at <b>any</b> approved location, and only
+                somewhere unlisted needs your permission. On: an employee who has a primary office
+                or granted sites may only check in there — every other approved location will ask
+                you for permission.
+              </span>
+            </span>
+          </label>
         </Card>
 
         <Card className="p-5">

@@ -12,6 +12,7 @@
 --                                       T11 multi-location: unassigned fallback
 --                                       T12 admin ledger adjustment
 --                                       T13 denied check-in doesn't burn the day
+--                                       T14 any approved site (default open mode)
 --
 -- Geofence inside/outside end-to-end, GPS-error handling, and Audit RBAC
 -- (route guard / no-write / no-approve / read-only) are covered by the app-level
@@ -86,8 +87,8 @@ begin
     raise exception 'T9 geofence-boundary FAIL: in=% out=%',round(boundary_in),round(boundary_out);
   end if;
 
-  -- T10/T11: an employee locked to one office is refused elsewhere until the
-  -- admin grants that second site, and an unassigned employee matches any site.
+  -- T10/T11 exercise the OPT-IN strict mode, so turn it on for them.
+  update app_settings set restrict_to_assigned_sites = true;
   update employees set office_id='11111111-1111-1111-1111-111111111111' where id=t;
   select * into r from nearest_allowed_location(t, 19.1136, 72.8697);  -- at Client Site
   if r.dist <= r.radius_m then
@@ -108,6 +109,21 @@ begin
   if r.assigned or r.dist > r.radius_m then
     raise exception 'T11 fallback FAIL: unassigned staff not matched to nearest active site';
   end if;
+
+  -- T14: the DEFAULT rule — with strict mode off, any approved site is fine for
+  -- everyone even when they have a primary office, and only an unlisted place
+  -- asks HR for permission.
+  update app_settings set restrict_to_assigned_sites = false;
+  update employees set office_id='11111111-1111-1111-1111-111111111111' where id=t;
+  select * into r from nearest_allowed_location(t, 19.1136, 72.8697);  -- a DIFFERENT approved site
+  if r.dist > r.radius_m then
+    raise exception 'T14 open-sites FAIL: approved site rejected for staff whose office is elsewhere (%m)', round(r.dist);
+  end if;
+  select * into r from nearest_allowed_location(t, 28.6139, 77.2090);  -- Delhi, unlisted
+  if r.dist <= r.radius_m then
+    raise exception 'T14 open-sites FAIL: unlisted location accepted without permission';
+  end if;
+  update employees set office_id=null where id=t;
 
   -- T12: admin credit/deduct lands in the ledger and moves the available total.
   select coalesce(sum(days),0) into prevb from leave_ledger where employee_id=t;

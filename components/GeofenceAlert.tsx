@@ -53,13 +53,19 @@ export default function GeofenceAlert({
             <MapPinOff size={26} strokeWidth={2.25} />
           </span>
           <h2 id={titleId} className="mt-4 text-lg font-semibold tracking-tight text-ink">
-            You&apos;re outside the office area
+            You&apos;re not at an approved location
           </h2>
           <p className="mt-2 text-sm text-ink-muted">
             Your {kind === "check_in" ? "check-in" : "check-out"} was{" "}
             <strong className="text-ink">not recorded</strong>. You must be within{" "}
-            {radiusM ?? 200} m of {officeName ?? "your office"} to mark attendance
-            {away ? <> — you appear to be about <strong className="text-ink">{away}</strong> away</> : null}.
+            {radiusM ?? 200} m of {officeName ?? "an approved work location"} to mark attendance
+            {away ? (
+              <>
+                {" "}
+                — the nearest one is about <strong className="text-ink">{away}</strong> away
+              </>
+            ) : null}
+            .
           </p>
           <p className="mt-3 w-full rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
             {kind === "check_in" ? (
