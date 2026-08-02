@@ -116,10 +116,9 @@ export default function GoogleMapPicker({
     circleRef.current?.setRadius(radiusM);
   }, [ready, radiusM]);
 
-  async function search(e: React.FormEvent) {
-    e.preventDefault();
+  async function search() {
     const q = query.trim();
-    if (!q || !geocoderRef.current) return;
+    if (!q || searching || !geocoderRef.current) return;
     setSearching(true);
     setSearchError(null);
     try {
@@ -159,26 +158,36 @@ export default function GoogleMapPicker({
 
   return (
     <div>
-      <form onSubmit={search} className="flex gap-2 border-b border-line bg-white p-2">
+      {/* Deliberately not a <form>: this picker renders inside the location
+          form, and a nested form makes Enter/"Find" submit the outer one. */}
+      <div className="flex gap-2 border-b border-line bg-white p-2">
         <div className="relative flex-1">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                e.stopPropagation();
+                search();
+              }
+            }}
             aria-label="Search for an address"
             placeholder="Search an address or landmark…"
             className="h-9 w-full rounded-lg border border-line-strong bg-white pl-9 pr-3 text-sm text-ink outline-none placeholder:text-outline focus:border-primary"
           />
         </div>
         <button
-          type="submit"
+          type="button"
+          onClick={search}
           disabled={searching || !ready}
           className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-50"
         >
           {searching ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
           Find
         </button>
-      </form>
+      </div>
       {searchError && (
         <p className="border-b border-line bg-amber-50 px-3 py-2 text-xs text-amber-800">
           {searchError}
