@@ -561,6 +561,13 @@ export default function HomePage() {
           <StatCard
             label="Leave Balance"
             value={leaveLeft != null ? `${leaveLeft} Days` : "—"}
+            sub={
+              balance
+                ? `${balance.taken_this_year} taken${
+                    balance.pending_days > 0 ? ` · ${balance.pending_days} pending` : ""
+                  }`
+                : undefined
+            }
             icon={Plane}
             tone="slate"
             href="/leave"

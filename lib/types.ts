@@ -19,6 +19,9 @@ export type LeaveStatus = {
   total_available: number;
   expiring_days: number;
   expiring_on: string;
+  /** Same definitions leave_balances_all() uses, so employee and admin agree. */
+  taken_this_year: number;
+  pending_days: number;
   sandwich_unpaid_month?: number;
   sandwich_unpaid_total?: number;
 };

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { nudgePushProcessor } from "@/lib/hooks";
 import { fmtDate } from "@/lib/format";
-import type { LeaveRequest, Employee } from "@/lib/types";
+import type { LeaveRequest, Employee, LeaveBalanceRow } from "@/lib/types";
 import { EmptyState } from "@/components/ui";
 import { PlaneTakeoff } from "lucide-react";
 
@@ -18,10 +18,12 @@ export default function LeavesAdminPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [balances, setBalances] = useState<Record<string, LeaveBalanceRow>>({});
+  const year = new Date().getFullYear();
 
   const refresh = useCallback(async () => {
     const supabase = supabaseBrowser();
-    const [{ data: p }, { data: r }] = await Promise.all([
+    const [{ data: p }, { data: r }, { data: bals }] = await Promise.all([
       supabase
         .from("leave_requests")
         .select("*, employees!employee_id(name, emp_id)")
@@ -33,9 +35,15 @@ export default function LeavesAdminPage() {
         .neq("status", "pending")
         .order("decided_at", { ascending: false })
         .limit(15),
+      // Deciding without knowing what the applicant has left made this screen
+      // guesswork — show the same balance the Employees page quotes.
+      supabase.rpc("leave_balances_all"),
     ]);
     setPending((p as LeaveWithEmp[]) ?? []);
     setRecent((r as LeaveWithEmp[]) ?? []);
+    setBalances(
+      Object.fromEntries(((bals ?? []) as LeaveBalanceRow[]).map((b) => [b.employee_id, b]))
+    );
     setLoaded(true);
   }, []);
 
@@ -62,6 +70,7 @@ export default function LeavesAdminPage() {
   }
 
   function LeaveCard({ r, actions }: { r: LeaveWithEmp; actions?: boolean }) {
+    const bal = balances[r.employee_id];
     return (
       <div className="rounded-xl border border-line bg-white p-4">
         <div className="flex items-center justify-between">
@@ -88,6 +97,20 @@ export default function LeavesAdminPage() {
           {(r.paid_days ?? 0) > 0 && <span className="text-success"> · {r.paid_days} paid</span>}
           {(r.unpaid_days ?? 0) > 0 && <span className="text-amber-600"> · {r.unpaid_days} unpaid</span>}
         </p>
+        {bal && (
+          <p className="mt-1.5 text-xs text-ink-muted">
+            Balance: <b className="text-ink">{bal.total_available}</b> day
+            {bal.total_available !== 1 ? "s" : ""} left
+            {" · "}
+            {bal.taken_this_year} taken in {year}
+            {bal.pending_days > 0 && (
+              <span className="text-amber-600"> · {bal.pending_days} awaiting approval</span>
+            )}
+            {actions && r.paid_days != null && bal.total_available < r.paid_days && (
+              <span className="text-danger"> · not enough paid balance for this request</span>
+            )}
+          </p>
+        )}
         <p className="mt-2 rounded-lg bg-slate-50 p-2.5 text-sm text-ink-muted">“{r.reason}”</p>
         {actions && (
           <div className="mt-3 flex gap-2">

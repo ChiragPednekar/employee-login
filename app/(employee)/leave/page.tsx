@@ -38,11 +38,11 @@ export default function LeavePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const meId = me?.id;
+  const year = Number(istToday().slice(0, 4));
 
   const refresh = useCallback(async () => {
     if (!meId) return;
     const supabase = supabaseBrowser();
-    const year = Number(istToday().slice(0, 4));
     const [{ data: st }, { data: reqs }, { data: led }, { data: sw }, { data: hols }] = await Promise.all([
       supabase.rpc("leave_status", { p_emp: meId }),
       supabase
@@ -65,7 +65,7 @@ export default function LeavePage() {
     setLedger((led as LeaveLedgerEntry[]) ?? []);
     setSandwich((sw as { sunday_date: string }[]) ?? []);
     setHolidays(hols ?? []);
-  }, [meId]);
+  }, [meId, year]);
 
   useEffect(() => {
     refresh();
@@ -130,6 +130,15 @@ export default function LeavePage() {
               <span>
                 Carried over: <b className="text-ink">{status?.carried_days ?? "—"}</b>
               </span>
+              {/* Same figures the admin sees, so the two screens can't disagree. */}
+              <span>
+                Taken in {year}: <b className="text-ink">{status?.taken_this_year ?? "—"}</b>
+              </span>
+              {status && status.pending_days > 0 && (
+                <span className="text-amber-600">
+                  Awaiting approval: <b>{status.pending_days}</b>
+                </span>
+              )}
             </div>
             {status && status.expiring_days > 0 && (
               <p className="mt-2 inline-block rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
