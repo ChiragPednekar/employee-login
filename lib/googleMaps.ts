@@ -9,10 +9,45 @@ const SCRIPT_ID = "google-maps-js";
 
 let loader: Promise<typeof google.maps> | null = null;
 
+/**
+ * Google rejects a bad key *after* the script loads, so the script's own
+ * onload/onerror can't catch it — the map just renders as a dark "can't load
+ * Google Maps" panel. Google calls window.gm_authFailure in that case, which is
+ * the only reliable signal. Record it so the picker can drop back to
+ * OpenStreetMap instead of leaving the admin staring at a broken map.
+ */
+declare global {
+  interface Window {
+    /** Called by the Maps JS API when it refuses the key. */
+    gm_authFailure?: () => void;
+  }
+}
+
+let authFailed = false;
+const authListeners = new Set<() => void>();
+
+export const googleMapsAuthFailed = () => authFailed;
+
+export function onGoogleMapsAuthFailure(cb: () => void): () => void {
+  authListeners.add(cb);
+  return () => authListeners.delete(cb);
+}
+
+if (typeof window !== "undefined") {
+  window.gm_authFailure = () => {
+    authFailed = true;
+    loader = null;
+    authListeners.forEach((cb) => cb());
+  };
+}
+
 /** Load the Maps JS API once per page and resolve with the `google.maps` namespace. */
 export function loadGoogleMaps(): Promise<typeof google.maps> {
   if (!hasGoogleMaps()) {
     return Promise.reject(new Error("No Google Maps API key configured"));
+  }
+  if (authFailed) {
+    return Promise.reject(new Error("Google rejected this API key"));
   }
   if (loader) return loader;
 
